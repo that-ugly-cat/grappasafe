@@ -55,6 +55,11 @@ class EmConfig:
     # Must be larger than the expected GPS interval (app default 15s).
     max_gap_s:            float = 120.0
 
+    # Data / system
+    live_window_min:      float = 10.0   # no data for longer -> entity drops off the live map
+    retention_days:       float = 7.0    # keep tracks without an emergency this long
+    ogn_flight_gap_min:   float = 30.0   # OGN silence that separates two flights (track/barogram)
+
     # Ground emergency rules
     impact_recovery_s:    float = 120.0  # motionless after impact -> AUTO_IMPACT
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
@@ -212,6 +217,11 @@ CONFIG_META = [
 
     # State machine — common
     ("max_gap_s",            "SM", "comune", "Silenzio GPS > N secondi → azzera le conferme in corso", "float"),
+
+    # Data / system
+    ("live_window_min",    "SM", "sistema", "Minuti senza dati oltre cui un'entità sparisce dalla mappa (pin stale)", "float"),
+    ("retention_days",     "SM", "sistema", "Giorni di conservazione delle tracce senza emergenza",                   "float"),
+    ("ogn_flight_gap_min", "SM", "sistema", "Minuti di silenzio OGN che separano due voli (traccia/barogramma)",      "float"),
 
     # Emergency machine — flight rules
     ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo atterraggio col paracadute → emergenza", "float"),

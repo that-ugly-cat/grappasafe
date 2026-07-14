@@ -110,6 +110,9 @@ const INFO = {
   impact_g_runner: { title: "Soglia impatto trail running", body: "Picco g per l'IMPACT nel trail. 0 disattiva." },
   impact_g_other: { title: "Soglia impatto altre attività", body: "Picco g per l'IMPACT nelle altre attività terrestri. 0 = disattivato di default." },
   max_gap_s: { title: "Silenzio GPS azzera i contatori", body: "Se il GPS tace più a lungo, tutti i contatori di conferma vengono azzerati: dopo un lungo silenzio non sappiamo se la condizione era sostenuta. Deve essere > dell'intervallo GPS atteso." },
+  live_window_min: { title: "Finestra 'live' (pin stale)", body: "Minuti senza nuovi dati oltre cui un'entità <strong>sparisce dalla mappa</strong>. Serve a togliere i pin fermi da ore (app chiusa, segnale perso). La sessione non viene chiusa, solo nascosta; le <strong>emergenze aperte restano visibili</strong> con un loro marker anche se l'entità è stale." },
+  retention_days: { title: "Conservazione tracce", body: "Giorni per cui si tengono i punti GPS / beacon OGN. Un job giornaliero cancella i più vecchi. <strong>Eccezione</strong>: le tracce legate a un'emergenza (aperta o risolta) non si cancellano — sono la prova dell'evento." },
+  ogn_flight_gap_min: { title: "Gap tra due voli OGN", body: "Un `ogn_id` accumula molti voli nel tempo, senza confini. Un silenzio più lungo di questo separa due voli: la traccia e il barogramma mostrano <strong>solo il volo corrente</strong> (dall'ultimo gap a ora), non tutta la storia del device." },
 };
 
 function openInfo(key) {

@@ -1,7 +1,7 @@
 import os
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -71,10 +71,21 @@ def _invalidate_rules():
 db.init_db()
 
 
+def _retention_worker(stop_flag):
+    """Once a day, delete tracks older than retention_days (emergency ones kept)."""
+    while not stop_flag.is_set():
+        try:
+            res = db.purge_old_tracks(_get_config().retention_days)
+            print(f"  [retention] purged {res}")
+        except Exception as e:
+            print(f"  [retention] error: {e}")
+        stop_flag.wait(86400)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    t = threading.Thread(target=ogn_worker, args=(_stop_flag,), daemon=True)
-    t.start()
+    threading.Thread(target=ogn_worker, args=(_stop_flag,), daemon=True).start()
+    threading.Thread(target=_retention_worker, args=(_stop_flag,), daemon=True).start()
     yield
     _stop_flag.set()
 
@@ -655,8 +666,9 @@ _CAT_LABELS = {
     "volo":      "Volo (parapendio / deltaplano / aliante)",
     "terrestre": "Attività terrestri",
     "comune":    "Comune",
+    "sistema":   "Sistema / dati",
 }
-_CAT_ORDER = ["volo", "terrestre", "comune"]
+_CAT_ORDER = ["volo", "terrestre", "comune", "sistema"]
 
 
 def _sections(rows):
@@ -853,8 +865,11 @@ async def admin_live(request: Request):
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
+    cfg = _get_config()
+    live_cutoff = datetime.now(timezone.utc) - timedelta(minutes=cfg.live_window_min)
+
     active  = db.get_all_active_sessions()
-    ogn     = db.get_ogn_latest()
+    ogn     = db.get_ogn_latest(cfg.live_window_min)
 
     def _agl(lat, lon, alt):
         if alt is None or lat is None or lon is None:
@@ -867,6 +882,11 @@ async def admin_live(request: Request):
     for s in active:
         pt = db.get_latest_point(s["id"])
         if not pt:
+            continue
+        # Drop stale sessions from the live map (app closed, signal lost). The
+        # session isn't ended, just hidden; open emergencies stay visible via
+        # their own markers.
+        if not _is_fresh(pt.get("ts"), live_cutoff):
             continue
         ent = {
             "id":       f"app_{s['id']}",
@@ -942,6 +962,19 @@ async def admin_live(request: Request):
     return JSONResponse(entities)
 
 
+def _is_fresh(ts, cutoff) -> bool:
+    """True if the timestamp is at or after the cutoff (recent enough to be live)."""
+    if not ts:
+        return False
+    try:
+        t = datetime.fromisoformat(ts)
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t >= cutoff
+    except Exception:
+        return True   # unparseable ts -> don't hide it
+
+
 def _with_agl(track):
     """Add agl_m to each track point (above ground level), for the barogram."""
     for p in track:
@@ -961,11 +994,12 @@ async def admin_track(request: Request, session_id: int):
 
 @app.get("/api/admin/ogn-track/{ogn_id}")
 async def admin_ogn_track(request: Request, ogn_id: str):
-    """Track of an OGN device, with AGL for the barogram."""
+    """Track of an OGN device (current flight only), with AGL for the barogram."""
     _, redir = require_admin(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
-    return JSONResponse(_with_agl(db.get_ogn_track(ogn_id, limit=300)))
+    cfg = _get_config()
+    return JSONResponse(_with_agl(db.get_ogn_track(ogn_id, limit=300, gap_min=cfg.ogn_flight_gap_min)))
 
 
 @app.get("/admin/emergencies", response_class=HTMLResponse)

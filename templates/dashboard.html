@@ -186,7 +186,7 @@ L.circle([45.85261987481419, 11.771344896002997], {
   radius: 19000, color: '#4a6aff', fillOpacity: 0.04, weight: 1.5, dashArray: '6,4',
 }).addTo(map);
 
-let entities = [], markers = {}, tracks = {}, activeId = null, hasFitted = false;
+let entities = [], markers = {}, tracks = {}, emergMarkers = {}, activeId = null, hasFitted = false;
 
 function arrowIcon(deg, color) {
   return L.divIcon({
@@ -285,9 +285,32 @@ function renderSidebar() {
   `).join('');
 }
 
+// Open emergencies get their own persistent markers, so they stay visible even
+// if the live entity has gone stale and dropped off the map.
+function renderEmergencyMarkers(data) {
+  const open = new Set(data.filter(e => e.lat != null).map(e => 'em_' + e.id));
+  for (const k of Object.keys(emergMarkers)) {
+    if (!open.has(k)) { emergMarkers[k].remove(); delete emergMarkers[k]; }
+  }
+  for (const e of data) {
+    if (e.lat == null) continue;
+    const key = 'em_' + e.id;
+    const popup = `<div class="map-popup"><strong>🆘 ${e.nome||''} ${e.cognome||''}</strong>
+      <div class="popup-row">${e.trigger} · ${e.ts ? e.ts.slice(0,16) : ''}</div>
+      <div class="popup-row"><a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a></div></div>`;
+    if (emergMarkers[key]) {
+      emergMarkers[key].setLatLng([e.lat, e.lon]);
+      emergMarkers[key].getPopup().setContent(popup);
+    } else {
+      emergMarkers[key] = L.marker([e.lat, e.lon], { icon: emergIcon(), zIndexOffset: 1000 }).bindPopup(popup).addTo(map);
+    }
+  }
+}
+
 async function loadEmergencies() {
   const r = await fetch('/api/admin/emergencies');
   const data = await r.json();
+  renderEmergencyMarkers(data);
   const panel = document.getElementById('emerg-panel');
   const list  = document.getElementById('emerg-list');
   if (!data.length) { panel.style.display = 'none'; return; }

@@ -479,8 +479,8 @@ def write_ogn_beacon(ogn_id, display_name, ts, lat, lon, **kwargs):
     return beacon_id
 
 
-def get_ogn_latest():
-    """Latest beacon per device over the last 10 minutes.
+def get_ogn_latest(window_min=10):
+    """Latest beacon per device within the live window (minutes).
     Resolves the owner's identity when the beacon is linked to a device."""
     con = _conn()
     rows = con.execute("""
@@ -492,18 +492,20 @@ def get_ogn_latest():
         FROM ogn_beacons b
         INNER JOIN (
             SELECT ogn_id, MAX(ts) AS max_ts FROM ogn_beacons
-            WHERE ts >= datetime('now', '-10 minutes')
+            WHERE datetime(ts) >= datetime('now', ?)
             GROUP BY ogn_id
         ) latest ON b.ogn_id = latest.ogn_id AND b.ts = latest.max_ts
         LEFT JOIN devices d ON b.ogn_id = d.ogn_id
         LEFT JOIN users   u ON d.owner_user_id = u.id
-    """).fetchall()
+    """, (f'-{int(window_min)} minutes',)).fetchall()
     con.close()
     return [dict(r) for r in rows]
 
 
-def get_ogn_track(ogn_id, limit=300):
-    """Time-ordered beacon track for one OGN device (oldest first)."""
+def get_ogn_track(ogn_id, limit=300, gap_min=30):
+    """Beacon track for one OGN device, trimmed to the current flight.
+    An OGN id accumulates many flights over days, so we split on gaps longer
+    than gap_min minutes and keep only the latest contiguous run."""
     con = _conn()
     rows = con.execute("""
         SELECT ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg
@@ -511,7 +513,23 @@ def get_ogn_track(ogn_id, limit=300):
         ORDER BY ts DESC LIMIT ?
     """, (ogn_id, limit)).fetchall()
     con.close()
-    return [dict(r) for r in reversed(rows)]
+    pts = [dict(r) for r in reversed(rows)]   # oldest first
+    if len(pts) < 2:
+        return pts
+
+    def _parse(ts):
+        try:
+            return datetime.fromisoformat(ts)
+        except Exception:
+            return None
+
+    start = 0
+    for i in range(len(pts) - 1, 0, -1):
+        t1, t0 = _parse(pts[i]["ts"]), _parse(pts[i - 1]["ts"])
+        if t1 and t0 and (t1 - t0).total_seconds() > gap_min * 60:
+            start = i
+            break
+    return pts[start:]
 
 
 def update_ogn_state(ogn_id, state):
@@ -611,6 +629,28 @@ def get_all_emergencies():
     """).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+# ── Retention ─────────────────────────────────────────────────────────────────
+
+def purge_old_tracks(retention_days):
+    """Delete GPS points and OGN beacons older than retention_days, keeping
+    anything linked to an emergency (open or resolved). Returns row counts."""
+    con = _conn()
+    cutoff = f'-{int(retention_days)} days'
+    c1 = con.execute("""
+        DELETE FROM gps_points
+        WHERE datetime(ts) < datetime('now', ?)
+          AND session_id NOT IN (SELECT session_id FROM emergencies WHERE session_id IS NOT NULL)
+    """, (cutoff,)).rowcount
+    c2 = con.execute("""
+        DELETE FROM ogn_beacons
+        WHERE datetime(ts) < datetime('now', ?)
+          AND id NOT IN (SELECT ogn_beacon_id FROM emergencies WHERE ogn_beacon_id IS NOT NULL)
+    """, (cutoff,)).rowcount
+    con.commit()
+    con.close()
+    return {"gps_points": c1, "ogn_beacons": c2}
 
 
 # ── Notification log ──────────────────────────────────────────────────────────
