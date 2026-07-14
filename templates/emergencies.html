@@ -26,6 +26,8 @@
     td { padding: .6rem .6rem; border-bottom: 1px solid #23233e; vertical-align: top; }
     tr.resolved { opacity: .55; }
     .who { font-weight: 600; color: #eee; }
+    .who-link { color: #6ab0ff; text-decoration: none; font-weight: 600; }
+    .who-link:hover { text-decoration: underline; }
     .meta { color: #777; font-size: .8rem; margin-top: .15rem; }
     .badge { font-size: .72rem; padding: .12rem .5rem; border-radius: 5px; white-space: nowrap; }
     .b-open { background: #3a1a1f; color: #ff9a9a; }
@@ -63,7 +65,13 @@
       {% for e in emergencies %}
       <tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
         <td>{{ e.ts[:16] if e.ts else '—' }}</td>
-        <td><div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div></td>
+        <td>
+          {% if e.subject_user_id %}
+            <a class="who-link" href="/admin/user/{{ e.subject_user_id }}">{{ e.nome }} {{ e.cognome }}</a>
+          {% else %}
+            <div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div>
+          {% endif %}
+        </td>
         <td>{{ e.attivita or '—' }}</td>
         <td><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
         <td>
@@ -75,8 +83,11 @@
           {% endif %}
         </td>
         <td>
-          {% if e.telefono %}📞 {{ e.telefono }}<br>{% endif %}
-          {% if e.gruppo_sanguigno %}<span class="meta">🩸 {{ e.gruppo_sanguigno }}</span>{% endif %}
+          {% if e.telefono %}<div>📞 {{ e.telefono }}</div>{% endif %}
+          {% if e.emergenza_contatto or e.emergenza_telefono %}
+            <div class="meta">🆘 {{ e.emergenza_contatto or '' }}{% if e.emergenza_telefono %} · {{ e.emergenza_telefono }}{% endif %}</div>
+          {% endif %}
+          {% if not e.telefono and not e.emergenza_contatto and not e.emergenza_telefono %}—{% endif %}
         </td>
         <td>{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
         <td class="note-cell">{{ e.note or '—' }}</td>

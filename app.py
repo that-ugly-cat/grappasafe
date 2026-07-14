@@ -633,6 +633,24 @@ async def admin_users(request: Request):
         return redir
     return templates.TemplateResponse(request, "users.html", {"user": user})
 
+
+@app.get("/admin/user/{uid}", response_class=HTMLResponse)
+async def admin_user_profile(request: Request, uid: int):
+    """Full profile of one user, with their devices and emergency history."""
+    user, redir = require_admin(request)
+    if redir:
+        return redir
+    subject = db.get_user(uid)
+    if not subject:
+        raise HTTPException(404, "Utente non trovato")
+    ems = [e for e in db.get_all_emergencies() if e.get("subject_user_id") == uid]
+    return templates.TemplateResponse(request, "user_profile.html", {
+        "user":        user,
+        "subject":     subject,
+        "devices":     db.get_user_devices(uid),
+        "emergencies": ems,
+    })
+
 _CAT_LABELS = {
     "volo":      "Volo (parapendio / deltaplano / aliante)",
     "terrestre": "Attività terrestri",

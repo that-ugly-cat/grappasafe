@@ -576,11 +576,14 @@ def get_all_emergencies():
     con = _conn()
     rows = con.execute("""
         SELECT e.*,
-               COALESCE(u.nome,             ou.nome)             AS nome,
-               COALESCE(u.cognome,          ou.cognome)          AS cognome,
-               COALESCE(u.telefono,         ou.telefono)         AS telefono,
-               COALESCE(u.gruppo_sanguigno, ou.gruppo_sanguigno) AS gruppo_sanguigno,
-               COALESCE(s.attivita, 'PARAGLIDER')                AS attivita,
+               COALESCE(u.nome,               ou.nome)               AS nome,
+               COALESCE(u.cognome,            ou.cognome)            AS cognome,
+               COALESCE(u.telefono,           ou.telefono)           AS telefono,
+               COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
+               COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
+               COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
+               COALESCE(s.user_id,            d.owner_user_id)       AS subject_user_id,
+               COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
                ob.ogn_id       AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome
