@@ -1,19 +1,98 @@
 {% extends "base.html" %}
 {% block nav %}{% endblock %}
+{% block title %}GrappaSafe{% endblock %}
 {% block content %}
-<div style="max-width:380px;margin:4rem auto;">
-  <div class="card">
-    <h2 style="margin-bottom:1.5rem;text-align:center">🏔 GrappaSafe</h2>
-    <form method="post" action="/login">
-      <label>Username
-        <input type="text" name="username" required autofocus>
-      </label>
-      <label>Password
-        <input type="password" name="password" required>
-      </label>
-      {% if error %}<p class="error">{{ error }}</p>{% endif %}
-      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Accedi</button>
-    </form>
+<style>
+  .landing { max-width: 860px; margin: 0 auto; }
+  .hero { display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0 1rem; }
+  .hero img { height: 54px; background: #fff; border-radius: 8px; padding: 4px 8px; }
+  .hero h1 { font-size: 2rem; color: #1a1a2e; letter-spacing: -.02em; }
+  .hero p { color: #666; font-size: .95rem; margin-top: .2rem; }
+  .lead { color: #444; font-size: 1.02rem; line-height: 1.6; margin: .4rem 0 1.6rem; }
+  .top { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start; }
+  @media (max-width: 680px) { .top { grid-template-columns: 1fr; } }
+  .login-card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a2e; }
+  .guide { margin-top: 2.5rem; }
+  .guide > h2 { font-size: 1.2rem; color: #1a1a2e; margin-bottom: 1rem; }
+  .guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+  .guide-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 1.1rem 1.3rem; }
+  .guide-card h3 { font-size: 1rem; color: #1a1a2e; margin-bottom: .3rem; }
+  .guide-card .who { color: #888; font-size: .82rem; margin-bottom: .7rem; }
+  .guide-card ul { margin: 0; padding-left: 1.1rem; color: #555; font-size: .9rem; line-height: 1.6; }
+  footer { margin: 3rem 0 1rem; text-align: center; color: #999; font-size: .88rem; }
+  footer a { color: #1a6a8a; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+
+<div class="landing">
+  <div class="hero">
+    <img src="/static/logo-consorzio.png" alt="Vivere il Grappa">
+    <div>
+      <h1>GrappaSafe</h1>
+      <p>Monitoraggio di sicurezza per il volo libero e l'outdoor sul Massiccio del Grappa</p>
+    </div>
   </div>
+
+  <div class="top">
+    <div>
+      <p class="lead">
+        GrappaSafe segue piloti e sportivi in un raggio di 19&nbsp;km attorno al Grappa e allerta
+        i soccorsi quando qualcosa non va. Fonde due sorgenti — l'app mobile (GPS e accelerometro)
+        e il feed OGN/FLARM in tempo reale — e riconosce le emergenze: SOS manuale, atterraggio
+        col paracadute d'emergenza, impatto seguito da immobilità. Quando serve, avvisa gli
+        amministratori con posizione, contatti e dati medici della persona.
+      </p>
+    </div>
+
+    <div class="card login-card">
+      <h2>Accedi</h2>
+      <form method="post" action="/login">
+        <label>Username <input type="text" name="username" required autofocus></label>
+        <label>Password <input type="password" name="password" required></label>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Accedi</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="guide">
+    <h2>Come si usa</h2>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>Utente</h3>
+        <div class="who">Piloti e sportivi</div>
+        <ul>
+          <li>Dall'app: scegli l'attività e avvia il tracking.</li>
+          <li>Registra i tuoi device OGN/FLARM in «I miei device» per essere riconosciuto anche quando voli tracciato solo dall'OGN.</li>
+          <li>In emergenza: SOS manuale, oppure il sistema rileva l'evento e ti chiede conferma dal telefono prima di allertare.</li>
+          <li>Tieni aggiornati profilo e dati medici: sono ciò che vedono i soccorritori.</li>
+        </ul>
+      </div>
+      <div class="guide-card">
+        <h3>Amministratore</h3>
+        <div class="who">Gestione e configurazione</div>
+        <ul>
+          <li>Dashboard live: mappa di app e OGN, tracce e barogrammi (quota AGL/AMSL).</li>
+          <li>Gestisce utenti e ruoli.</li>
+          <li>Configura la macchina degli stati (soglie) e le regole d'emergenza (attive, per attività, immediate o con conferma).</li>
+          <li>Segue e risolve le emergenze, con nota obbligatoria.</li>
+        </ul>
+      </div>
+      <div class="guide-card">
+        <h3>Observer</h3>
+        <div class="who">Monitoraggio in sola lettura</div>
+        <ul>
+          <li>Vede la dashboard live e il recap delle emergenze.</li>
+          <li>Consulta i profili con contatti e dati medici, utili ai soccorsi.</li>
+          <li>Può risolvere le emergenze (con nota).</li>
+          <li>Non modifica utenti né configurazioni.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Made with ♥ da <a href="https://borant.eu" target="_blank" rel="noopener">Giovanni Spitale · Borant</a>
+  </footer>
 </div>
 {% endblock %}
