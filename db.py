@@ -122,6 +122,7 @@ def init_db():
             owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             display_name  TEXT NOT NULL,
             ogn_id        TEXT,
+            activity      TEXT,
             color         TEXT NOT NULL DEFAULT '#3b82f6',
             created_at    TEXT DEFAULT (datetime('now'))
         );
@@ -268,7 +269,7 @@ def update_user_full(user_id, *, username, nome, cognome, role,
 def get_user_devices(user_id):
     con = _conn()
     rows = con.execute(
-        "SELECT id, display_name, ogn_id, color, created_at "
+        "SELECT id, display_name, ogn_id, activity, color, created_at "
         "FROM devices WHERE owner_user_id=? ORDER BY display_name",
         (user_id,),
     ).fetchall()
@@ -283,11 +284,12 @@ def get_device(device_id):
     return dict(row) if row else None
 
 
-def add_device(owner_user_id, display_name, ogn_id=None, color="#3b82f6"):
+def add_device(owner_user_id, display_name, ogn_id=None, activity=None, color="#3b82f6"):
     con = _conn()
     cur = con.execute(
-        "INSERT INTO devices (owner_user_id, display_name, ogn_id, color) VALUES (?,?,?,?)",
-        (owner_user_id, display_name, (ogn_id or None), color),
+        "INSERT INTO devices (owner_user_id, display_name, ogn_id, activity, color) "
+        "VALUES (?,?,?,?,?)",
+        (owner_user_id, display_name, (ogn_id or None), (activity or None), color),
     )
     con.commit()
     did = cur.lastrowid
@@ -295,13 +297,13 @@ def add_device(owner_user_id, display_name, ogn_id=None, color="#3b82f6"):
     return did
 
 
-def update_device(device_id, owner_user_id, display_name, ogn_id=None, color="#3b82f6"):
+def update_device(device_id, owner_user_id, display_name, ogn_id=None, activity=None, color="#3b82f6"):
     """Update a device only if it belongs to owner_user_id (ownership guard)."""
     con = _conn()
     con.execute(
-        "UPDATE devices SET display_name=?, ogn_id=?, color=? "
+        "UPDATE devices SET display_name=?, ogn_id=?, activity=?, color=? "
         "WHERE id=? AND owner_user_id=?",
-        (display_name, (ogn_id or None), color, device_id, owner_user_id),
+        (display_name, (ogn_id or None), (activity or None), color, device_id, owner_user_id),
     )
     con.commit()
     con.close()
@@ -322,7 +324,7 @@ def get_all_devices():
     """All devices with their owner, for the admin view."""
     con = _conn()
     rows = con.execute("""
-        SELECT d.id, d.display_name, d.ogn_id, d.color,
+        SELECT d.id, d.display_name, d.ogn_id, d.activity, d.color,
                d.owner_user_id, u.username AS owner_username,
                u.nome AS owner_nome, u.cognome AS owner_cognome
         FROM devices d LEFT JOIN users u ON d.owner_user_id = u.id
@@ -461,6 +463,7 @@ def get_ogn_latest():
     rows = con.execute("""
         SELECT b.*,
                d.owner_user_id AS owner_user_id,
+               d.activity      AS device_activity,
                u.nome    AS owner_nome,
                u.cognome AS owner_cognome
         FROM ogn_beacons b

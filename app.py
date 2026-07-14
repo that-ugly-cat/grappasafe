@@ -157,6 +157,7 @@ async def api_add_device(request: Request):
     did = db.add_device(
         user["id"], display_name,
         ogn_id=(body.get("ogn_id") or "").strip() or None,
+        activity=(body.get("activity") or "").strip() or None,
         color=body.get("color") or "#3b82f6",
     )
     return JSONResponse({"id": did})
@@ -177,6 +178,7 @@ async def api_update_device(request: Request, device_id: int):
     db.update_device(
         device_id, user["id"], display_name,
         ogn_id=(body.get("ogn_id") or "").strip() or None,
+        activity=(body.get("activity") or "").strip() or None,
         color=body.get("color") or "#3b82f6",
     )
     return JSONResponse({"ok": True})
@@ -758,23 +760,28 @@ async def admin_live(request: Request):
     active  = db.get_all_active_sessions()
     ogn     = db.get_ogn_latest()
 
+    def _agl(lat, lon, alt):
+        if alt is None or lat is None or lon is None:
+            return None
+        return compute_agl(lat, lon, alt)
+
     entities = []
+    app_by_user = {}   # user_id -> app entity, so OGN beacons can merge into it
 
     for s in active:
         pt = db.get_latest_point(s["id"])
         if not pt:
             continue
-        alt = pt.get("alt_m")
-        entities.append({
+        ent = {
             "id":       f"app_{s['id']}",
             "source":   "APP",
             "nome":     f"{s['nome']} {s['cognome']}",
-            "attivita": s["attivita"],
+            "attivita": s["attivita"],          # user's live choice: top priority
             "state":    s["state"],
             "lat":      pt["lat"],
             "lon":      pt["lon"],
-            "alt_m":    alt,
-            "agl_m":    compute_agl(pt["lat"], pt["lon"], alt) if alt is not None else None,
+            "alt_m":    pt.get("alt_m"),
+            "agl_m":    _agl(pt["lat"], pt["lon"], pt.get("alt_m")),
             "speed_kmh": pt.get("speed_kmh"),
             "vspeed_ms": pt.get("vspeed_ms"),
             "course_deg": None,   # not tracked for app GPS points
@@ -782,27 +789,50 @@ async def admin_live(request: Request):
             "ts":       pt["ts"],
             "share_token": s["share_token"],
             "session_id":  s["id"],
-        })
+            "linked":   False,
+        }
+        app_by_user[s["user_id"]] = ent
+        entities.append(ent)
 
     for o in ogn:
-        # If the beacon is linked to a user's device show their full name;
-        # otherwise fall back to display_name/ogn_id.
+        owner = o.get("owner_user_id")
+
+        # Same person already tracked via the app: merge into that entity.
+        # The user's declared activity wins; keep the fresher position.
+        if owner is not None and owner in app_by_user:
+            ent = app_by_user[owner]
+            ent["linked"] = True
+            if (o["ts"] or "") > (ent["ts"] or ""):
+                ent["lat"]        = o.get("lat")
+                ent["lon"]        = o.get("lon")
+                ent["alt_m"]      = o.get("alt_m")
+                ent["agl_m"]      = _agl(o.get("lat"), o.get("lon"), o.get("alt_m"))
+                ent["speed_kmh"]  = o.get("speed_kmh")
+                ent["vspeed_ms"]  = o.get("vspeed_ms")
+                ent["course_deg"] = o.get("course_deg")
+                ent["ts"]         = o["ts"]
+            continue
+
+        # Standalone OGN entity.
         if o.get("owner_nome") or o.get("owner_cognome"):
             ogn_nome = f"{o.get('owner_nome') or ''} {o.get('owner_cognome') or ''}".strip()
         else:
             ogn_nome = o.get("display_name") or o["ogn_id"]
-        olat, olon, oalt = o.get("lat"), o.get("lon"), o.get("alt_m")
+
+        # Activity precedence for an OGN beacon: device-declared > aircraft type.
+        attivita = o.get("device_activity") or _ogn_kind(o.get("aircraft_type"))
+
         entities.append({
             "id":       f"ogn_{o['ogn_id']}",
             "source":   "OGN",
             "nome":     ogn_nome,
-            "linked":   bool(o.get("owner_user_id")),
-            "attivita": _ogn_kind(o.get("aircraft_type")),
+            "linked":   bool(owner),
+            "attivita": attivita,
             "state":    o["state"],
-            "lat":      olat,
-            "lon":      olon,
-            "alt_m":    oalt,
-            "agl_m":    compute_agl(olat, olon, oalt) if (oalt is not None and olat is not None and olon is not None) else None,
+            "lat":      o.get("lat"),
+            "lon":      o.get("lon"),
+            "alt_m":    o.get("alt_m"),
+            "agl_m":    _agl(o.get("lat"), o.get("lon"), o.get("alt_m")),
             "speed_kmh": o.get("speed_kmh"),
             "vspeed_ms": o.get("vspeed_ms"),
             "course_deg": o.get("course_deg"),
