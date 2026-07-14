@@ -1038,6 +1038,18 @@ async def admin_emergencies_page(request: Request):
     })
 
 
+@app.get("/admin/emergency/{eid}", response_class=HTMLResponse)
+async def admin_emergency_detail(request: Request, eid: int):
+    """Detail/recap page for a single emergency."""
+    user, redir = require_viewer(request)
+    if redir:
+        return redir
+    em = db.get_emergency(eid)
+    if not em:
+        raise HTTPException(404, "Emergenza non trovata")
+    return templates.TemplateResponse(request, "emergency_detail.html", {"user": user, "em": em})
+
+
 @app.get("/api/admin/emergencies")
 async def admin_emergencies_api(request: Request, resolved: str = "false"):
     """List of emergencies filtered by resolution state."""

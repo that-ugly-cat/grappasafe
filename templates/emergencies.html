@@ -73,7 +73,7 @@
           {% endif %}
         </td>
         <td>{{ e.attivita or '—' }}</td>
-        <td><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
+        <td><a class="who-link" href="/admin/emergency/{{ e.id }}">{{ TRIG.get(e.trigger, e.trigger) }}</a></td>
         <td>
           {% if e.resolved_at %}
             <span class="badge b-res">Risolta</span>

@@ -316,7 +316,7 @@ function renderEmergencyMarkers(data) {
     const key = 'em_' + e.id;
     const popup = `<div class="map-popup"><strong>🆘 ${e.nome||''} ${e.cognome||''}</strong>
       <div class="popup-row">${e.trigger} · ${fmtLocal(e.ts, 'dt')}</div>
-      <div class="popup-row"><a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a></div></div>`;
+      <div class="popup-row"><a href="/admin/emergency/${e.id}">Dettagli emergenza →</a></div></div>`;
     if (emergMarkers[key]) {
       emergMarkers[key].setLatLng([e.lat, e.lon]);
       emergMarkers[key].getPopup().setContent(popup);
@@ -336,7 +336,7 @@ async function loadEmergencies() {
   panel.style.display = 'block';
   list.innerHTML = data.map(e => `
     <div class="emerg-item">
-      <div class="emerg-name">🆘 ${e.nome || ''} ${e.cognome || ''}</div>
+      <div class="emerg-name"><a href="/admin/emergency/${e.id}" style="color:#f88;text-decoration:none">🆘 ${e.nome || ''} ${e.cognome || ''} →</a></div>
       <div class="emerg-meta">
         ${e.attivita || '—'} · ${e.trigger} · ${fmtLocal(e.ts, 'dt')}<br>
         📞 ${e.telefono || '—'} | 🩸 ${e.gruppo_sanguigno || '—'} | 🌐 ${e.lingua || 'it'}<br>

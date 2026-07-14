@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergenza #{{ em.id }} — GrappaSafe</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
+    .content { max-width: 820px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    .back { color: #6ab0ff; text-decoration: none; font-size: .85rem; }
+    .back:hover { text-decoration: underline; }
+    .head { display: flex; align-items: center; gap: .8rem; margin: 1rem 0 1.5rem; }
+    .head h2 { font-size: 1.5rem; color: #eee; }
+    .head a { color: #6ab0ff; text-decoration: none; }
+    .head a:hover { text-decoration: underline; }
+    .badge { font-size: .78rem; padding: .2rem .6rem; border-radius: 6px; white-space: nowrap; }
+    .b-open { background: #3a1a1f; color: #ff9a9a; animation: pulse 1.2s infinite; }
+    .b-res  { background: #1a3a24; color: #86efac; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+    .card { background: #1e1e38; border: 1px solid #2e2e4e; border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
+    .card h3 { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6ab0ff; margin-bottom: .9rem; }
+    .row { display: flex; padding: .35rem 0; font-size: .92rem; }
+    .row .k { color: #777; width: 200px; flex-shrink: 0; }
+    .row .v { color: #eee; }
+    .muted { color: #666; }
+    .trig { font-family: monospace; color: #cbd; }
+    a.maps { color: #6ab0ff; text-decoration: none; }
+    a.maps:hover { text-decoration: underline; }
+    #em-map { height: 240px; border-radius: 8px; margin-top: .3rem; }
+    textarea { width: 100%; background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .6rem; font-size: .9rem; font-family: inherit; margin-bottom: .7rem; }
+    .btn-res { background: #1a6a3a; color: #fff; border: none; border-radius: 6px; padding: .55rem 1.3rem; font-size: .9rem; font-weight: 600; cursor: pointer; }
+    .btn-res:hover { background: #248a4a; }
+    .err { color: #fca5a5; font-size: .85rem; margin-left: .6rem; }
+  </style>
+</head>
+<body>
+
+{% set active = "emergencies" %}{% include "_admin_topbar.html" %}
+
+{% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute di emergenza', 'AUTO_IMPACT': 'Impatto + immobile', 'AUTO_IMMOBILE': 'Immobilità prolungata'} %}
+{% set ACT = {'PARAGLIDER': 'Parapendio', 'HANGGLIDER': 'Deltaplano', 'GLIDER': 'Aliante', 'CYCLIST': 'Ciclismo', 'CLIMBER': 'Arrampicata', 'HIKER': 'Escursionismo', 'RUNNER': 'Trail running', 'OTHER_ON_GROUND': 'Altro', 'AIRCRAFT': 'Aeromobile', 'HELICOPTER': 'Elicottero'} %}
+
+<div class="content">
+  <a class="back" href="/admin/emergencies">← Torna alle emergenze</a>
+
+  <div class="head">
+    <span style="font-size:1.6rem">🆘</span>
+    <h2>
+      {% if em.subject_user_id %}<a href="/admin/user/{{ em.subject_user_id }}">{{ em.nome }} {{ em.cognome }}</a>
+      {% else %}{{ (em.nome ~ ' ' ~ em.cognome) if em.nome else (em.ogn_id or 'Sconosciuto') }}{% endif %}
+    </h2>
+    {% if em.resolved_at %}<span class="badge b-res">Risolta</span>{% else %}<span class="badge b-open">Aperta</span>{% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Dettagli</h3>
+    <div class="row"><span class="k">Trigger</span><span class="v"><span class="trig">{{ TRIG.get(em.trigger, em.trigger) }}</span></span></div>
+    <div class="row"><span class="k">Ora</span><span class="v">{{ (em.ts | localtime) if em.ts else '—' }}</span></div>
+    <div class="row"><span class="k">Attività</span><span class="v">{{ ACT.get(em.attivita, em.attivita) or '—' }}</span></div>
+    {% if em.ogn_id %}<div class="row"><span class="k">Device OGN</span><span class="v trig">{{ em.ogn_id }}</span></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Posizione</h3>
+    {% if em.lat %}
+      <div class="row"><span class="k">Coordinate</span><span class="v">{{ "%.5f"|format(em.lat) }}, {{ "%.5f"|format(em.lon) }}
+        · <a class="maps" href="https://maps.google.com/?q={{ em.lat }},{{ em.lon }}" target="_blank" rel="noopener">Google Maps</a>
+        {% if em.alt_m %} · ⬆ {{ em.alt_m|round|int }}m{% endif %}</span></div>
+      <div id="em-map"></div>
+    {% else %}
+      <div class="muted">Posizione non disponibile.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Contatti</h3>
+    <div class="row"><span class="k">Telefono personale</span><span class="v">{{ em.telefono or '—' }}</span></div>
+    <div class="row"><span class="k">Contatto d'emergenza</span><span class="v">{{ em.emergenza_contatto or '—' }}{% if em.emergenza_telefono %} · {{ em.emergenza_telefono }}{% endif %}</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Dati medici</h3>
+    <div class="row"><span class="k">Gruppo sanguigno</span><span class="v">{{ em.gruppo_sanguigno or '—' }}</span></div>
+    <div class="row"><span class="k">Note salute</span><span class="v">{{ em.note_salute or '—' }}</span></div>
+    <div class="row"><span class="k">Lingua</span><span class="v">{{ em.lingua or 'it' }}</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Risoluzione</h3>
+    {% if em.resolved_at %}
+      <div class="row"><span class="k">Risolta il</span><span class="v">{{ em.resolved_at | localtime }}</span></div>
+      <div class="row"><span class="k">Da</span><span class="v">{{ (em.resolver_nome ~ ' ' ~ em.resolver_cognome) if em.resolver_nome else '—' }}</span></div>
+      <div class="row"><span class="k">Nota</span><span class="v">{{ em.note or '—' }}</span></div>
+    {% else %}
+      <p class="muted" style="margin-bottom:.7rem">Emergenza ancora aperta. Aggiungi una nota di risoluzione (obbligatoria).</p>
+      <textarea id="note" rows="3" placeholder="Cosa è successo, com'è finita?"></textarea>
+      <button class="btn-res" onclick="resolve()">Segna come risolta</button>
+      <span class="err" id="err"></span>
+    {% endif %}
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+{% if em.lat %}
+const map = L.map('em-map', { zoomControl: true }).setView([{{ em.lat }}, {{ em.lon }}], 14);
+L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 }).addTo(map);
+L.marker([{{ em.lat }}, {{ em.lon }}]).addTo(map);
+{% endif %}
+
+async function resolve() {
+  const note = document.getElementById('note').value.trim();
+  const err = document.getElementById('err');
+  if (!note) { err.textContent = 'La nota è obbligatoria.'; return; }
+  const fd = new FormData(); fd.append('note', note);
+  const r = await fetch('/admin/emergency/{{ em.id }}/resolve', { method: 'POST', body: fd });
+  if (r.ok) location.reload();
+  else err.textContent = 'Errore nel salvataggio.';
+}
+</script>
+</body>
+</html>

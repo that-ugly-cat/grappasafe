@@ -600,6 +600,37 @@ def get_open_emergencies():
     return [dict(r) for r in rows]
 
 
+def get_emergency(eid):
+    """One emergency with the full subject identity (both resolution paths)."""
+    con = _conn()
+    row = con.execute("""
+        SELECT e.*,
+               COALESCE(u.nome,               ou.nome)               AS nome,
+               COALESCE(u.cognome,            ou.cognome)            AS cognome,
+               COALESCE(u.telefono,           ou.telefono)           AS telefono,
+               COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
+               COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
+               COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
+               COALESCE(u.note_salute,        ou.note_salute)        AS note_salute,
+               COALESCE(u.lingua,             ou.lingua)             AS lingua,
+               COALESCE(s.user_id,            d.owner_user_id)       AS subject_user_id,
+               COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
+               ob.ogn_id       AS ogn_id,
+               rb.nome         AS resolver_nome,
+               rb.cognome      AS resolver_cognome
+        FROM emergencies e
+        LEFT JOIN sessions    s  ON e.session_id    = s.id
+        LEFT JOIN users       u  ON s.user_id       = u.id
+        LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id = ob.id
+        LEFT JOIN devices     d  ON ob.ogn_id       = d.ogn_id
+        LEFT JOIN users       ou ON d.owner_user_id = ou.id
+        LEFT JOIN users       rb ON e.resolved_by   = rb.id
+        WHERE e.id = ?
+    """, (eid,)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
 def get_all_emergencies():
     """Every emergency (open and resolved) with identity resolved via both the
     session and the OGN-device path, plus who resolved it. For the recap page."""
