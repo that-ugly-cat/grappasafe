@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergenze — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
+    .content { max-width: 760px; margin: 2rem auto; padding: 0 1.5rem 5rem; }
+    h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
+    .subtitle { color: #888; font-size: .9rem; margin-bottom: 2rem; line-height: 1.5; }
+    .rule { background: #1e1e38; border: 1px solid #2e2e4e; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+    .rule.disabled { opacity: .6; }
+    .rule-head { display: flex; align-items: center; gap: .7rem; }
+    .rule-title { font-weight: 700; font-size: 1.02rem; flex: 1; color: #eee; }
+    .badge { font-size: .72rem; padding: .15rem .55rem; border-radius: 5px; }
+    .badge-imm { background: #3a1a1f; color: #ff9a9a; }
+    .badge-pend { background: #3a331a; color: #ffd98a; }
+    .rule-desc { color: #999; font-size: .87rem; margin: .6rem 0 .8rem; line-height: 1.5; }
+    .rule-desc code { background: #12122a; padding: .05rem .35rem; border-radius: 4px; color: #bcd; font-size: .85em; }
+    .rule-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .85rem; color: #aaa; margin-top: .6rem; }
+    .rule-row .lbl { color: #666; width: 70px; flex-shrink: 0; }
+    .chips { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .chip { font-size: .8rem; padding: .2rem .55rem; border-radius: 5px; border: 1px solid #3a3a5e; color: #888; cursor: pointer; user-select: none; }
+    .chip input { display: none; }
+    .chip.on { background: #23345a; border-color: #4a6aab; color: #cfe0ff; }
+    select, .rule input[type=number] { background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .35rem .6rem; font-size: .85rem; }
+    .rule input[type=number] { width: 90px; text-align: right; }
+    .switch { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: #3a3a5e; border-radius: 22px; transition: .2s; cursor: pointer; }
+    .slider::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #ccc; border-radius: 50%; transition: .2s; }
+    .switch input:checked + .slider { background: #2a7a3a; }
+    .switch input:checked + .slider::before { transform: translateX(20px); background: #fff; }
+    .manual { display: flex; align-items: center; gap: .7rem; border: 1px dashed #3a3a5e; border-radius: 12px; padding: .9rem 1.2rem; margin-bottom: 1.5rem; color: #999; font-size: .88rem; }
+    .globals { border-top: 1px solid #2e2e4e; padding-top: 1.4rem; margin-top: 1.5rem; }
+    .globals .section-title { font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #888; margin-bottom: 1rem; }
+    .field { margin-bottom: 1rem; display: flex; align-items: center; gap: .7rem; }
+    .field label { flex: 1; color: #aaa; font-size: .88rem; }
+    .field label span { display: block; font-size: .75rem; color: #555; font-family: monospace; }
+    .field input { width: 110px; background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .45rem .7rem; font-size: .9rem; text-align: right; }
+    .flash { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1.2rem; font-size: .9rem; display: none; }
+    .flash-success { background: #1a3a1a; color: #86efac; border: 1px solid #2a5a2a; }
+    .flash-error { background: #3a1a1a; color: #fca5a5; border: 1px solid #5a2a2a; }
+    .save-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #12122a; border-top: 1px solid #2e2e4e; padding: .8rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    .save-bar .hint { color: #555; font-size: .82rem; flex: 1; }
+    .btn-save { background: #e63946; color: white; border: none; border-radius: 8px; padding: .6rem 1.6rem; font-size: .95rem; font-weight: 700; cursor: pointer; }
+    .btn-save:hover { background: #c02030; }
+    .btn-save:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
+  <strong>🏔 GrappaSafe</strong>
+  <span style="color:#555">|</span>
+  <a href="/dashboard">Dashboard</a>
+  <a href="/admin/users">Utenti</a>
+  <a href="/admin/states-settings">Stati</a>
+  <a href="/admin/emergency-settings" class="active">Emergenze</a>
+  <div class="spacer"></div>
+  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
+  <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>
+</div>
+
+<div class="content">
+  <h2>Macchina delle emergenze</h2>
+  <p class="subtitle">Le regole che trasformano gli stati in un'emergenza. Ognuna si può accendere/spegnere, limitare a certe attività e impostare come immediata o con conferma dal telefono (pending). Attive entro 60s.</p>
+
+  <div id="flash-area"></div>
+
+  {% for r in rule_cards %}
+  <div class="rule {{ '' if r.enabled else 'disabled' }}" data-rule="{{ r.key }}">
+    <div class="rule-head">
+      <label class="switch"><input type="checkbox" class="rule-enabled" {{ 'checked' if r.enabled else '' }} onchange="this.closest('.rule').classList.toggle('disabled', !this.checked)"><span class="slider"></span></label>
+      <span class="rule-title">{{ r.title }}</span>
+      <span class="badge badge-imm" style="display:none"></span>
+    </div>
+    <div class="rule-desc">{{ r.desc | safe }}</div>
+
+    <div class="rule-row">
+      <span class="lbl">Vale per</span>
+      <span class="chips">
+        {% for code, label in r.activities %}
+        <label class="chip {{ 'on' if code in r.applies_set else '' }}"><input type="checkbox" class="rule-act" value="{{ code }}" {{ 'checked' if code in r.applies_set else '' }} onchange="this.closest('.chip').classList.toggle('on', this.checked)">{{ label }}</label>
+        {% endfor %}
+      </span>
+    </div>
+
+    <div class="rule-row">
+      <span class="lbl">Modalità</span>
+      <select class="rule-mode">
+        <option value="immediate" {{ 'selected' if r.mode == 'immediate' else '' }}>Immediata</option>
+        <option value="pending" {{ 'selected' if r.mode == 'pending' else '' }}>Pending (conferma dal telefono)</option>
+      </select>
+      {% if r.param_key %}
+      <span class="lbl" style="width:auto;margin-left:.5rem">{{ r.param_label }}</span>
+      <input type="number" step="0.1" data-key="{{ r.param_key }}" value="{{ r.param_value }}"> s
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="manual">
+    <span style="font-size:1.1rem">✋</span>
+    <span><strong style="color:#ccc">SOS manuale</strong> — sempre attivo, immediato. Non disattivabile.</span>
+  </div>
+
+  <div class="globals">
+    <div class="section-title">Parametri comuni</div>
+    {% for g in globals %}
+    <div class="field">
+      <label>{{ g.descrizione }}<span>{{ g.key }}</span></label>
+      <input type="number" step="0.1" data-key="{{ g.key }}" value="{{ g.value }}">
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="save-bar">
+  <span class="hint">Regole e parametri vengono salvati insieme.</span>
+  <button class="btn-save" id="btn-save" onclick="saveAll()">Salva</button>
+</div>
+
+<script>
+function flash(msg, type) {
+  const area = document.getElementById('flash-area');
+  area.innerHTML = `<div class="flash flash-${type}" style="display:block">${msg}</div>`;
+  setTimeout(() => area.innerHTML = '', 5000);
+}
+
+function collectRules() {
+  const out = {};
+  document.querySelectorAll('.rule[data-rule]').forEach(card => {
+    const key = card.dataset.rule;
+    const enabled = card.querySelector('.rule-enabled').checked;
+    const mode = card.querySelector('.rule-mode').value;
+    const applies_to = [...card.querySelectorAll('.rule-act:checked')].map(c => c.value);
+    out[key] = { enabled, mode, applies_to };
+  });
+  return out;
+}
+
+function collectConfig() {
+  const out = {};
+  document.querySelectorAll('input[data-key]').forEach(input => {
+    const raw = input.value.trim();
+    if (raw !== '') out[input.dataset.key] = raw;
+  });
+  return out;
+}
+
+async function saveAll() {
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = 'Salvataggio...';
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('/api/admin/rules',  { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectRules()) }),
+      fetch('/api/admin/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectConfig()) }),
+    ]);
+    if (r1.ok && r2.ok) flash('Regole e parametri salvati. Attivi entro 60s.', 'success');
+    else flash('Errore nel salvataggio.', 'error');
+  } catch { flash('Errore di rete.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Salva';
+}
+</script>
+</body>
+</html>

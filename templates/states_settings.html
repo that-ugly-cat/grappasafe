@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stati — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
+    .content { max-width: 820px; margin: 2rem auto; padding: 0 1.5rem 5rem; }
+    h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
+    .subtitle { color: #888; font-size: .9rem; margin-bottom: 2rem; line-height: 1.5; }
+    .section { margin-bottom: 2.5rem; }
+    .section-title { font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #4a9eff; margin-bottom: 1rem; padding-bottom: .4rem; border-bottom: 1px solid #2e2e4e; }
+    .field { margin-bottom: 1rem; display: flex; align-items: center; gap: .7rem; }
+    .field label { flex: 1; color: #aaa; font-size: .88rem; }
+    .field label span { display: block; font-size: .75rem; color: #555; margin-top: .15rem; font-family: monospace; }
+    .field input { width: 120px; background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .45rem .7rem; font-size: .9rem; text-align: right; }
+    .field input:focus { outline: none; border-color: #4a9eff; }
+    .btn-info { width: 20px; height: 20px; border-radius: 50%; background: #2a2a4a; border: 1px solid #4a4a6e; color: #888; font-size: .7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; line-height: 1; }
+    .btn-info:hover { background: #3a3a6a; border-color: #9999cc; color: #ccc; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #1e1e38; border: 1px solid #3e3e6e; border-radius: 12px; padding: 1.4rem 1.6rem; max-width: 420px; width: 90%; position: relative; }
+    .modal-close { position: absolute; top: .8rem; right: .9rem; background: none; border: none; color: #666; font-size: 1.1rem; cursor: pointer; }
+    .modal-close:hover { color: #ccc; }
+    .modal-key { font-size: .72rem; color: #555; font-family: monospace; background: #12122a; border: 1px solid #2e2e4e; display: inline-block; padding: .1rem .45rem; border-radius: 4px; margin-bottom: .65rem; }
+    .modal-title { font-size: 1rem; font-weight: 700; color: #ddd; margin-bottom: .6rem; }
+    .modal-body { font-size: .88rem; color: #aaa; line-height: 1.55; }
+    .modal-body strong { color: #ccc; }
+    .modal-footer { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid #2e2e4e; }
+    .modal-default { font-size: .78rem; color: #555; }
+    .modal-default em { color: #888; }
+    .flash { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1.2rem; font-size: .9rem; display: none; }
+    .flash-success { background: #1a3a1a; color: #86efac; border: 1px solid #2a5a2a; }
+    .flash-error { background: #3a1a1a; color: #fca5a5; border: 1px solid #5a2a2a; }
+    .save-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #12122a; border-top: 1px solid #2e2e4e; padding: .8rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    .save-bar .hint { color: #555; font-size: .82rem; flex: 1; }
+    .btn-save { background: #4a9eff; color: #06182e; border: none; border-radius: 8px; padding: .6rem 1.6rem; font-size: .95rem; font-weight: 700; cursor: pointer; }
+    .btn-save:hover { background: #6ab0ff; }
+    .btn-save:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-reset { background: #2e2e4e; color: #aaa; border: none; border-radius: 8px; padding: .6rem 1rem; font-size: .85rem; cursor: pointer; }
+    .btn-reset:hover { background: #3a3a5e; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
+  <strong>🏔 GrappaSafe</strong>
+  <span style="color:#555">|</span>
+  <a href="/dashboard">Dashboard</a>
+  <a href="/admin/users">Utenti</a>
+  <a href="/admin/states-settings" class="active">Stati</a>
+  <a href="/admin/emergency-settings">Emergenze</a>
+  <div class="spacer"></div>
+  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
+  <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>
+</div>
+
+<div class="content">
+  <h2>Macchina degli stati</h2>
+  <p class="subtitle">Le soglie che definiscono <strong>cosa sta facendo</strong> un mezzo. Non producono emergenze — quelle si configurano nella pagina Emergenze. Modifiche attive entro 60 secondi, senza riavvio.</p>
+
+  <div id="flash-area"></div>
+
+  {% for section in sections %}
+  <div class="section">
+    <div class="section-title">{{ section.label }}</div>
+    {% for row in section.rows %}
+    <div class="field">
+      <label>{{ row.descrizione }}<span>{{ row.key }}</span></label>
+      <button class="btn-info" onclick="openInfo('{{ row.key }}')" type="button" title="Informazioni">?</button>
+      <input type="number" step="{{ '1' if row.tipo == 'int' else '0.1' }}"
+             data-key="{{ row.key }}" data-tipo="{{ row.tipo }}" value="{{ row.value }}" id="cfg-{{ row.key }}">
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeInfoOnOverlay(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeInfo()">✕</button>
+    <div class="modal-key" id="modal-key"></div>
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer"><span class="modal-default">Default: <em id="modal-default"></em></span></div>
+  </div>
+</div>
+
+<div class="save-bar">
+  <span class="hint">I valori vengono validati prima del salvataggio.</span>
+  <button class="btn-reset" onclick="resetAll()">Reset default</button>
+  <button class="btn-save" id="btn-save" onclick="saveAll()">Salva</button>
+</div>
+
+<script>
+const DEFAULTS = { {% for row in config %}"{{ row.key }}": "{{ row.value }}",{% endfor %} };
+
+const INFO = {
+  takeoff_speed_kmh: { title: "Velocità minima decollo", body: "Velocità orizzontale oltre cui parte il conteggio del decollo. In OR con la quota AGL: basta una delle due." },
+  takeoff_alt_m: { title: "Quota AGL alternativa decollo", body: "Quota sopra il suolo oltre cui si riconosce un possibile decollo anche senza velocità. Calcolata dalle tile SRTM1 (il Grappa è a ~1400m AMSL, per questo si usa l'AGL)." },
+  takeoff_confirm_s: { title: "Conferma decollo", body: "La condizione di decollo deve durare almeno questo tempo prima di passare ad <strong>AIRBORNE</strong>. Filtra spike GPS momentanei." },
+  landing_speed_kmh: { title: "Velocità massima atterraggio", body: "Sotto questa velocità <strong>e</strong> sotto la quota di atterraggio (AND) si considera un possibile atterraggio." },
+  landing_alt_m: { title: "Quota AGL massima atterraggio", body: "Da raggiungere insieme alla soglia di velocità. Evita falsi atterraggi per volo lento in quota." },
+  landing_confirm_s: { title: "Conferma atterraggio", body: "Secondi consecutivi sotto entrambe le soglie prima di passare a <strong>LANDED</strong>." },
+  descending_vspeed_ms: { title: "Soglia discesa rapida", body: "Velocità verticale (m/s, <strong>negativa</strong>) sotto cui la discesa è compatibile col paracadute d'emergenza. -8 m/s è molto rapido (un parapendio normale perde 1-3 m/s)." },
+  descending_confirm_s: { title: "Conferma discesa rapida", body: "Secondi di discesa rapida prima di passare a <strong>DESCENDING_FAST</strong>. Basso per reattività." },
+  moving_speed_kmh: { title: "Soglia movimento", body: "Velocità minima per restare <strong>MOVING</strong>. Sotto, parte il contatore di stazionarietà. Attenzione al rumore GPS da fermi." },
+  stationary_confirm_s: { title: "Conferma stazionarietà", body: "Secondi sotto soglia prima di passare a <strong>STATIONARY</strong>. Filtra fermate brevissime (semaforo, selfie)." },
+  impact_g_cyclist: { title: "Soglia impatto ciclismo", body: "Accelerazione di picco (g) oltre cui si registra un <strong>IMPACT</strong> in bici. Decisa lato server dal picco che manda l'app. 0 disattiva. Le energie di un urto in bici sono diverse da quelle a piedi." },
+  impact_g_climber: { title: "Soglia impatto arrampicata", body: "Picco g per l'IMPACT in arrampicata. 0 disattiva." },
+  impact_g_hiker: { title: "Soglia impatto escursionismo", body: "Picco g per l'IMPACT in escursionismo. 0 disattiva." },
+  impact_g_runner: { title: "Soglia impatto trail running", body: "Picco g per l'IMPACT nel trail. 0 disattiva." },
+  impact_g_other: { title: "Soglia impatto altre attività", body: "Picco g per l'IMPACT nelle altre attività terrestri. 0 = disattivato di default." },
+  max_gap_s: { title: "Silenzio GPS azzera i contatori", body: "Se il GPS tace più a lungo, tutti i contatori di conferma vengono azzerati: dopo un lungo silenzio non sappiamo se la condizione era sostenuta. Deve essere > dell'intervallo GPS atteso." },
+};
+
+function openInfo(key) {
+  const info = INFO[key] || { title: key, body: "Nessuna descrizione." };
+  document.getElementById('modal-key').textContent = key;
+  document.getElementById('modal-title').textContent = info.title;
+  document.getElementById('modal-body').innerHTML = info.body;
+  document.getElementById('modal-default').textContent = DEFAULTS[key] ?? '—';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeInfo() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeInfoOnOverlay(e) { if (e.target === document.getElementById('modal-overlay')) closeInfo(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInfo(); });
+
+function flash(msg, type) {
+  const area = document.getElementById('flash-area');
+  area.innerHTML = `<div class="flash flash-${type}" style="display:block">${msg}</div>`;
+  setTimeout(() => area.innerHTML = '', 5000);
+}
+
+async function saveAll() {
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = 'Salvataggio...';
+  const payload = {}; let valid = true;
+  document.querySelectorAll('input[data-key]').forEach(input => {
+    const raw = input.value.trim();
+    if (raw === '') { valid = false; return; }
+    if (input.dataset.tipo === 'int' && !Number.isInteger(Number(raw))) { input.style.borderColor = '#e63946'; valid = false; }
+    else { input.style.borderColor = ''; payload[input.dataset.key] = raw; }
+  });
+  if (!valid) { flash('Alcuni valori non sono validi.', 'error'); btn.disabled = false; btn.textContent = 'Salva'; return; }
+  try {
+    const r = await fetch('/api/admin/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await r.json();
+    if (data.errors && data.errors.length) flash('Errore su: ' + data.errors.map(e => e.key).join(', '), 'error');
+    else flash(`${data.saved.length} valori salvati. Attivi entro 60s.`, 'success');
+  } catch { flash('Errore di rete.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Salva';
+}
+
+function resetAll() {
+  if (!confirm('Ripristinare i valori di default di questa pagina?')) return;
+  document.querySelectorAll('input[data-key]').forEach(input => {
+    const key = input.dataset.key;
+    if (DEFAULTS[key] !== undefined) input.value = DEFAULTS[key];
+  });
+}
+</script>
+</body>
+</html>

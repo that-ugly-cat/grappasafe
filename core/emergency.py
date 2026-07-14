@@ -19,10 +19,9 @@ from core.state_machine import (
 
 class EmergencyTrigger(str, Enum):
     MANUAL        = "MANUAL"         # manual SOS from the app
-    AUTO_CHUTE    = "AUTO_CHUTE"     # landed under reserve chute
+    AUTO_CHUTE    = "AUTO_CHUTE"     # landed under reserve chute, then immobile
     AUTO_IMPACT   = "AUTO_IMPACT"    # impact followed by a long stop
     AUTO_IMMOBILE = "AUTO_IMMOBILE"  # motionless for a long time, no impact
-    SIGNAL_LOST   = "SIGNAL_LOST"    # OGN: signal lost while airborne
 
 
 @dataclass
@@ -43,6 +42,15 @@ class EmConfig:
     moving_speed_kmh:     float = 2.0    # below this the entity is not moving
     stationary_confirm_s: float = 20.0   # seconds below speed -> STATIONARY
 
+    # Impact threshold per activity, in g, decided server-side from the peak
+    # acceleration reported by the app. Energies differ a lot by activity.
+    # 0 disables impact detection for that activity.
+    impact_g_cyclist:     float = 6.0
+    impact_g_climber:     float = 5.0
+    impact_g_hiker:       float = 8.0
+    impact_g_runner:      float = 8.0
+    impact_g_other:       float = 0.0
+
     # GPS gap: silence longer than this clears the streak timestamps.
     # Must be larger than the expected GPS interval (app default 15s).
     max_gap_s:            float = 120.0
@@ -52,8 +60,9 @@ class EmConfig:
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
     ack_cooldown_s:       float = 1800.0 # quiet period after "I'm fine"
 
-    # OGN rule
-    signal_lost_min:      float = 5.0    # minutes without OGN signal while airborne
+    # Reserve-chute rule: after DESCENDING_FAST -> LANDED, the pilot must stay
+    # immobile (speed <= landing_speed_kmh) this long to confirm the emergency.
+    chute_immobile_s:     float = 120.0
 
     # Confirmation window for AUTO_IMPACT / AUTO_IMMOBILE only. After detection
     # the user has this long to answer from the phone; otherwise the emergency
@@ -79,6 +88,10 @@ class EmContext:
     pending_trigger:    Optional["EmergencyTrigger"] = None
     pending_since:      Optional[datetime]           = None
 
+    # Reserve-chute watch: set when DESCENDING_FAST -> LANDED. The pilot must
+    # stay immobile for chute_immobile_s to confirm; cleared if they move.
+    chute_watch_since:  Optional[datetime]           = None
+
 
 def update_em_context(ctx: EmContext, old_state: str, new_state: str, now: datetime):
     """Called by app.py on every SM transition to update the EM memory."""
@@ -89,6 +102,10 @@ def update_em_context(ctx: EmContext, old_state: str, new_state: str, now: datet
     if new_state == GroundState.IMPACT:
         ctx.impact_at = now
 
+    # Landing straight out of a fast descent starts the reserve-chute watch.
+    if old_state == FlightState.DESCENDING_FAST and new_state == FlightState.LANDED:
+        ctx.chute_watch_since = now
+
 
 def ack_ok(ctx: EmContext, now: datetime):
     """User says "I'm fine": reset the alarm context and clear any pending."""
@@ -98,11 +115,13 @@ def ack_ok(ctx: EmContext, now: datetime):
     ctx.pending_since   = None
 
 
-def evaluate_em(ctx: EmContext, cfg: EmConfig, now: datetime) -> Optional[EmergencyTrigger]:
-    """Evaluate the rules on a GPS tick and return a trigger, or None.
+def evaluate_em(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime,
+                speed_kmh=None) -> Optional[EmergencyTrigger]:
+    """Evaluate the enabled rules on a GPS tick and return a trigger, or None.
 
-    Returns None if an emergency is already open, or if a pending one is
-    waiting for the user to confirm (avoids duplicates).
+    Rules come from the DB (enabled / applies_to / mode), so an admin can turn
+    them on and off and scope them to activities. Returns None if an emergency
+    is already open, or a pending one is waiting for confirmation.
     """
     if ctx.emergency_open:
         return None
@@ -110,24 +129,34 @@ def evaluate_em(ctx: EmContext, cfg: EmConfig, now: datetime) -> Optional[Emerge
         return None
 
     if ctx.attivita in FLIGHT_ACTIVITIES:
-        return _eval_flight(ctx)
+        return _eval_flight(ctx, cfg, rules, now, speed_kmh)
     elif ctx.attivita in GROUND_ACTIVITIES:
-        return _eval_ground(ctx, cfg, now)
+        return _eval_ground(ctx, cfg, rules, now)
     return None
 
 
-def _eval_flight(ctx: EmContext) -> Optional[EmergencyTrigger]:
-    """Flight rule: DESCENDING_FAST -> LANDED means landed under reserve chute."""
-    if (ctx.current_sm_state == FlightState.LANDED
-            and ctx.previous_sm_state == FlightState.DESCENDING_FAST):
+def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime,
+                 speed_kmh) -> Optional[EmergencyTrigger]:
+    """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s."""
+    if ctx.chute_watch_since is None:
+        return None
+    if not rule_active(rules, "AUTO_CHUTE", ctx.attivita):
+        ctx.chute_watch_since = None
+        return None
+    # Pilot got up and moved away -> not an emergency.
+    if speed_kmh is not None and speed_kmh > cfg.landing_speed_kmh:
+        ctx.chute_watch_since = None
+        return None
+    if (now - ctx.chute_watch_since).total_seconds() >= cfg.chute_immobile_s:
+        ctx.chute_watch_since = None
         return EmergencyTrigger.AUTO_CHUTE
     return None
 
 
-def _eval_ground(ctx: EmContext, cfg: EmConfig, now: datetime) -> Optional[EmergencyTrigger]:
+def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
     """Ground rules:
-      1. STATIONARY after IMPACT for > impact_recovery_s -> AUTO_IMPACT
-      2. STATIONARY without impact for > immobile_emergency_s -> AUTO_IMMOBILE
+      AUTO_IMPACT:   STATIONARY after an IMPACT for > impact_recovery_s
+      AUTO_IMMOBILE: STATIONARY without impact for > immobile_emergency_s (off by default)
     """
     if ctx.current_sm_state != GroundState.STATIONARY:
         return None
@@ -140,17 +169,15 @@ def _eval_ground(ctx: EmContext, cfg: EmConfig, now: datetime) -> Optional[Emerg
         impact_relevant = None
 
     # General ack cooldown, to avoid false positives right after "I'm fine".
-    if ctx.ack_at:
-        time_since_ack = (now - ctx.ack_at).total_seconds()
-        if time_since_ack < cfg.ack_cooldown_s:
-            return None
+    if ctx.ack_at and (now - ctx.ack_at).total_seconds() < cfg.ack_cooldown_s:
+        return None
 
-    # Rule 1: impact then motionless.
-    if impact_relevant and seconds_stationary >= cfg.impact_recovery_s:
+    if (impact_relevant and seconds_stationary >= cfg.impact_recovery_s
+            and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMPACT
 
-    # Rule 2: prolonged stop without impact.
-    if not impact_relevant and seconds_stationary >= cfg.immobile_emergency_s:
+    if (not impact_relevant and seconds_stationary >= cfg.immobile_emergency_s
+            and rule_active(rules, "AUTO_IMMOBILE", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMMOBILE
 
     return None
@@ -160,24 +187,80 @@ def _eval_ground(ctx: EmContext, cfg: EmConfig, now: datetime) -> Optional[Emerg
 DEFAULT_CONFIG = EmConfig()
 
 
-# Config metadata for the admin UI: (key, category, description, type).
-# Descriptions stay in Italian, they are shown to the admin as-is.
+# Config metadata for the admin UI: (key, machine, category, description, type).
+# machine is "SM" (state definitions) or "EM" (emergency rules). Descriptions
+# stay in Italian, they are shown to the admin as-is.
 CONFIG_META = [
-    ("takeoff_speed_kmh",    "volo", "Velocità minima decollo (km/h)",                          "float"),
-    ("takeoff_alt_m",        "volo", "Quota alternativa per confermare decollo (m)",              "float"),
-    ("takeoff_confirm_s",    "volo", "Secondi in condizione decollo per confermare",              "float"),
-    ("landing_speed_kmh",    "volo", "Velocità massima atterraggio (km/h)",                      "float"),
-    ("landing_alt_m",        "volo", "Quota massima atterraggio (m)",                            "float"),
-    ("landing_confirm_s",    "volo", "Secondi in condizione atterraggio per confermare",          "float"),
-    ("descending_vspeed_ms", "volo", "Velocità verticale soglia paracadute (m/s, negativo)",     "float"),
-    ("descending_confirm_s", "volo", "Secondi in discesa rapida per confermare",                  "float"),
-    ("signal_lost_min",      "volo", "Minuti senza segnale OGN in volo → emergenza",             "float"),
+    # State machine — flight
+    ("takeoff_speed_kmh",    "SM", "volo", "Velocità minima decollo (km/h)",                     "float"),
+    ("takeoff_alt_m",        "SM", "volo", "Quota AGL alternativa per confermare decollo (m)",   "float"),
+    ("takeoff_confirm_s",    "SM", "volo", "Secondi in condizione decollo per confermare",       "float"),
+    ("landing_speed_kmh",    "SM", "volo", "Velocità massima atterraggio (km/h)",                "float"),
+    ("landing_alt_m",        "SM", "volo", "Quota AGL massima atterraggio (m)",                  "float"),
+    ("landing_confirm_s",    "SM", "volo", "Secondi in condizione atterraggio per confermare",   "float"),
+    ("descending_vspeed_ms", "SM", "volo", "Velocità verticale soglia discesa rapida (m/s, negativo)", "float"),
+    ("descending_confirm_s", "SM", "volo", "Secondi in discesa rapida per confermare",           "float"),
 
-    ("moving_speed_kmh",      "terrestre", "Velocità minima per considerarsi in movimento (km/h)",       "float"),
-    ("stationary_confirm_s",  "terrestre", "Secondi sotto soglia velocità → STATIONARY",                 "float"),
-    ("max_gap_s",             "terrestre", "Silenzio GPS > N secondi → azzera streak (volo + terrestre)", "float"),
-    ("impact_recovery_s",     "terrestre", "Secondi fermo dopo impatto → AUTO_IMPACT",                   "float"),
-    ("immobile_emergency_s",  "terrestre", "Secondi fermo senza impatto → AUTO_IMMOBILE",                "float"),
-    ("ack_cooldown_s",        "terrestre", "Secondi di pausa dopo 'sto bene' prima di riallarmare",                          "float"),
-    ("pending_timeout_s",     "terrestre", "Secondi per confermare o annullare l'emergenza dal telefono (poi auto-confirm)", "float"),
+    # State machine — ground
+    ("moving_speed_kmh",     "SM", "terrestre", "Velocità minima per considerarsi in movimento (km/h)", "float"),
+    ("stationary_confirm_s", "SM", "terrestre", "Secondi sotto soglia velocità → STATIONARY",          "float"),
+    ("impact_g_cyclist",     "SM", "terrestre", "Soglia impatto ciclismo (g, 0 = disattivato)",        "float"),
+    ("impact_g_climber",     "SM", "terrestre", "Soglia impatto arrampicata (g, 0 = disattivato)",     "float"),
+    ("impact_g_hiker",       "SM", "terrestre", "Soglia impatto escursionismo (g, 0 = disattivato)",   "float"),
+    ("impact_g_runner",      "SM", "terrestre", "Soglia impatto trail running (g, 0 = disattivato)",   "float"),
+    ("impact_g_other",       "SM", "terrestre", "Soglia impatto altre attività (g, 0 = disattivato)",  "float"),
+
+    # State machine — common
+    ("max_gap_s",            "SM", "comune", "Silenzio GPS > N secondi → azzera le conferme in corso", "float"),
+
+    # Emergency machine — flight rules
+    ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo atterraggio col paracadute → emergenza", "float"),
+
+    # Emergency machine — ground rules
+    ("impact_recovery_s",    "EM", "terrestre", "Secondi fermo dopo impatto → AUTO_IMPACT",       "float"),
+    ("immobile_emergency_s", "EM", "terrestre", "Secondi fermo senza impatto → AUTO_IMMOBILE",    "float"),
+    ("ack_cooldown_s",       "EM", "terrestre", "Secondi di pausa dopo 'sto bene' prima di riallarmare", "float"),
+    ("pending_timeout_s",    "EM", "terrestre", "Secondi per confermare/annullare dal telefono (poi auto-confirm)", "float"),
 ]
+
+
+# Default emergency rules, seeded into the emergency_rules table.
+# (key, enabled, applies_to CSV, mode).
+FREE_FLIGHT = "PARAGLIDER,HANGGLIDER,GLIDER"
+GROUND_ALL  = "CYCLIST,CLIMBER,HIKER,RUNNER,OTHER_ON_GROUND"
+
+RULE_DEFAULTS = [
+    ("AUTO_CHUTE",    1, FREE_FLIGHT, "immediate"),
+    ("AUTO_IMPACT",   1, GROUND_ALL,  "pending"),
+    # Prolonged immobility without an impact is almost always a legit break
+    # (lunch, rest). Off by default; the admin can re-enable it on the EM page.
+    ("AUTO_IMMOBILE", 0, GROUND_ALL,  "pending"),
+]
+
+
+# OGN/FLARM aircraft type codes -> activity label. Shared by the API and the
+# OGN worker to tell paragliders and hang gliders apart from powered traffic.
+_OGN_KIND = {
+    1:  "GLIDER",
+    2:  "AIRCRAFT",     # tow plane
+    3:  "HELICOPTER",
+    4:  "SKYDIVER",
+    5:  "AIRCRAFT",     # drop plane
+    6:  "HANGGLIDER",
+    7:  "PARAGLIDER",
+    8:  "AIRCRAFT",     # powered
+    9:  "AIRCRAFT",     # jet
+    11: "BALLOON",
+    12: "AIRSHIP",
+    13: "UAV",
+}
+
+
+def ogn_kind(aircraft_type) -> str:
+    return _OGN_KIND.get(aircraft_type, "UNKNOWN")
+
+
+def rule_active(rules: dict, key: str, attivita: str) -> bool:
+    """True if the rule is present, enabled, and scoped to this activity."""
+    r = rules.get(key)
+    return bool(r and r["enabled"] and attivita in r["applies_to"])

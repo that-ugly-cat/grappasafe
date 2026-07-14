@@ -108,8 +108,19 @@ def init_db():
             key         TEXT PRIMARY KEY,
             value       TEXT NOT NULL,
             tipo        TEXT NOT NULL DEFAULT 'float',
-            categoria   TEXT,
+            macchina    TEXT,                            -- SM | EM
+            categoria   TEXT,                            -- volo | terrestre | comune
             descrizione TEXT,
+            aggiornato  TEXT DEFAULT (datetime('now'))
+        );
+
+        -- Emergency rules, one row per trigger. Each rule can be toggled,
+        -- scoped to a set of activities, and run immediately or as pending.
+        CREATE TABLE IF NOT EXISTS emergency_rules (
+            key         TEXT PRIMARY KEY,                -- AUTO_CHUTE | SIGNAL_LOST | AUTO_IMPACT | AUTO_IMMOBILE
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            applies_to  TEXT NOT NULL DEFAULT '',        -- CSV of activity codes
+            mode        TEXT NOT NULL DEFAULT 'immediate', -- immediate | pending
             aggiornato  TEXT DEFAULT (datetime('now'))
         );
 
@@ -133,6 +144,7 @@ def init_db():
     con.commit()
 
     _seed_config(con)
+    _seed_rules(con)
     con.close()
 
 
@@ -140,12 +152,23 @@ def _seed_config(con):
     """Insert the default config values if they are not present yet."""
     from core.emergency import EmConfig, CONFIG_META
     defaults = EmConfig()
-    for key, categoria, descrizione, tipo in CONFIG_META:
+    for key, macchina, categoria, descrizione, tipo in CONFIG_META:
         value = str(getattr(defaults, key))
         con.execute("""
-            INSERT OR IGNORE INTO config (key, value, tipo, categoria, descrizione)
-            VALUES (?, ?, ?, ?, ?)
-        """, (key, value, tipo, categoria, descrizione))
+            INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (key, value, tipo, macchina, categoria, descrizione))
+    con.commit()
+
+
+def _seed_rules(con):
+    """Insert the default emergency rules if they are not present yet."""
+    from core.emergency import RULE_DEFAULTS
+    for key, enabled, applies_to, mode in RULE_DEFAULTS:
+        con.execute("""
+            INSERT OR IGNORE INTO emergency_rules (key, enabled, applies_to, mode)
+            VALUES (?, ?, ?, ?)
+        """, (key, enabled, applies_to, mode))
     con.commit()
 
 
@@ -594,6 +617,47 @@ def set_config_value(key, value):
     )
     con.commit()
     con.close()
+
+
+# ── Emergency rules ───────────────────────────────────────────────────────────
+
+def get_emergency_rules():
+    """All emergency rules as a list of dicts."""
+    con = _conn()
+    rows = con.execute("SELECT * FROM emergency_rules ORDER BY key").fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_emergency_rule(key):
+    con = _conn()
+    row = con.execute("SELECT * FROM emergency_rules WHERE key=?", (key,)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
+def set_emergency_rule(key, enabled, applies_to, mode):
+    con = _conn()
+    con.execute("""
+        UPDATE emergency_rules
+        SET enabled=?, applies_to=?, mode=?, aggiornato=datetime('now')
+        WHERE key=?
+    """, (int(enabled), applies_to, mode, key))
+    con.commit()
+    con.close()
+
+
+def load_em_rules() -> dict:
+    """Emergency rules keyed by trigger name, for the evaluator.
+    Each value: {enabled: bool, applies_to: set[str], mode: str}."""
+    rules = {}
+    for r in get_emergency_rules():
+        rules[r["key"]] = {
+            "enabled":    bool(r["enabled"]),
+            "applies_to": {a for a in (r["applies_to"] or "").split(",") if a},
+            "mode":       r["mode"],
+        }
+    return rules
 
 
 def load_em_config():

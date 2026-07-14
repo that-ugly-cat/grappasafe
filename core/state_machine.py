@@ -207,8 +207,23 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
     # LANDED stays LANDED; the session is closed manually.
 
 
+def _impact_threshold(attivita: str, cfg: "EmConfig") -> float:
+    """Per-activity impact threshold in g (0 disables impact detection)."""
+    return {
+        "CYCLIST":         cfg.impact_g_cyclist,
+        "CLIMBER":         cfg.impact_g_climber,
+        "HIKER":           cfg.impact_g_hiker,
+        "RUNNER":          cfg.impact_g_runner,
+        "OTHER_ON_GROUND": cfg.impact_g_other,
+    }.get(attivita, 0.0)
+
+
 def _update_ground(tracker: SessionTracker, point: dict, cfg: "EmConfig", now: datetime):
-    impact    = bool(point.get("impact_detected", False))
+    # Impact is decided server-side from the peak acceleration the app reports,
+    # against a per-activity threshold in g.
+    accel     = point.get("accel_magnitude")
+    threshold = _impact_threshold(tracker.attivita, cfg)
+    impact    = accel is not None and threshold > 0 and accel >= threshold
     speed_kmh = point.get("speed_kmh") or 0.0
 
     # IMPACT is transient: it overrides everything for one tick.

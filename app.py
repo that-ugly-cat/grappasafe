@@ -19,7 +19,9 @@ from core.notify import notify_emergency
 from core.ogn import ogn_worker
 from core.state_machine import SessionTracker, update_sm
 from core.terrain import compute_agl
-from core.emergency import EmConfig, EmContext, EmergencyTrigger, evaluate_em, update_em_context, ack_ok
+from core.emergency import (
+    EmConfig, EmContext, EmergencyTrigger, evaluate_em, update_em_context, ack_ok, ogn_kind,
+)
 import db
 
 _stop_flag = threading.Event()
@@ -46,6 +48,25 @@ def _get_config() -> EmConfig:
 def _invalidate_config():
     global _config_loaded_at
     _config_loaded_at = datetime.min.replace(tzinfo=timezone.utc)
+
+# ── Emergency rules cache ─────────────────────────────────────────────────────
+_rules_cache: dict = {}
+_rules_loaded_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
+
+def _get_rules() -> dict:
+    global _rules_cache, _rules_loaded_at
+    now = datetime.now(timezone.utc)
+    if (now - _rules_loaded_at).total_seconds() > _CONFIG_TTL:
+        try:
+            _rules_cache = db.load_em_rules()
+        except Exception:
+            pass  # keep the previous cache
+        _rules_loaded_at = now
+    return _rules_cache
+
+def _invalidate_rules():
+    global _rules_loaded_at
+    _rules_loaded_at = datetime.min.replace(tzinfo=timezone.utc)
 
 db.init_db()
 
@@ -443,7 +464,8 @@ async def gps_point(request: Request):
             _session_trackers[session_id] = tracker
             _em_contexts[session_id]      = ctx
 
-    cfg = _get_config()
+    cfg   = _get_config()
+    rules = _get_rules()
 
     # 1. Update the SM
     old_state  = tracker.state
@@ -457,15 +479,14 @@ async def gps_point(request: Request):
         # The SM keeps running internally but the DB stays at EMERGENCY
         update_em_context(ctx, old_state, tracker.state, now)
 
-    # 2. Evaluate the EM
-    # MANUAL, AUTO_CHUTE and SIGNAL_LOST -> immediate emergency (no pending).
-    # AUTO_IMPACT and AUTO_IMMOBILE -> pending: the user has pending_timeout_s
-    # to confirm or cancel from the phone.
-    _IMMEDIATE = {EmergencyTrigger.MANUAL, EmergencyTrigger.AUTO_CHUTE, EmergencyTrigger.SIGNAL_LOST}
-
-    trigger = evaluate_em(ctx, cfg, now)
+    # 2. Evaluate the EM. Each rule's mode (immediate / pending) comes from its
+    #    config: immediate opens the emergency now, pending gives the user
+    #    pending_timeout_s to confirm or cancel from the phone.
+    trigger = evaluate_em(ctx, cfg, rules, now, speed_kmh=speed_kmh)
     if trigger:
-        if trigger in _IMMEDIATE:
+        rule = rules.get(trigger.value)
+        mode = rule["mode"] if rule else "immediate"
+        if mode == "immediate":
             _handle_emergency(session_id, ctx, tracker, trigger, lat, lon, alt_m)
         elif ctx.pending_trigger is None:
             ctx.pending_trigger = trigger
@@ -612,27 +633,106 @@ async def admin_users(request: Request):
         return redir
     return templates.TemplateResponse(request, "users.html", {"user": user})
 
-@app.get("/admin/config", response_class=HTMLResponse)
-async def admin_config(request: Request):
+_CAT_LABELS = {
+    "volo":      "Volo (parapendio / deltaplano / aliante)",
+    "terrestre": "Attività terrestri",
+    "comune":    "Comune",
+}
+_CAT_ORDER = ["volo", "terrestre", "comune"]
+
+
+def _sections(rows):
+    from collections import defaultdict
+    by_cat = defaultdict(list)
+    for r in rows:
+        by_cat[r["categoria"]].append(r)
+    return [
+        {"key": c, "label": _CAT_LABELS.get(c, c), "rows": by_cat[c]}
+        for c in _CAT_ORDER if by_cat.get(c)
+    ]
+
+
+@app.get("/admin/config")
+async def admin_config_redirect(request: Request):
+    return RedirectResponse("/admin/states-settings", status_code=301)
+
+
+@app.get("/admin/states-settings", response_class=HTMLResponse)
+async def admin_states_settings(request: Request):
     user, redir = require_admin(request)
     if redir:
         return redir
-    config_rows = db.get_all_config()
-    # Group by category, keeping the order: flight first, then ground
-    from collections import defaultdict
-    by_cat: dict = defaultdict(list)
-    for row in config_rows:
-        by_cat[row["categoria"]].append(row)
-    cat_labels = {"volo": "Volo (parapendio / deltaplano)", "terrestre": "Attività terrestri"}
-    sections = [
-        {"key": cat, "label": cat_labels.get(cat, cat), "rows": rows}
-        for cat, rows in by_cat.items()
-    ]
-    return templates.TemplateResponse(request, "config.html", {
+    rows = [r for r in db.get_all_config() if r["macchina"] == "SM"]
+    return templates.TemplateResponse(request, "states_settings.html", {
         "user": user,
-        "sections": sections,
-        "config": config_rows,  # feeds DEFAULTS in the JS
+        "sections": _sections(rows),
+        "config": rows,
     })
+
+
+# Rule display metadata for the emergency-settings page.
+_FLIGHT_OPTS = [("PARAGLIDER", "Parapendio"), ("HANGGLIDER", "Deltaplano"), ("GLIDER", "Aliante")]
+_GROUND_OPTS = [("CYCLIST", "Ciclismo"), ("CLIMBER", "Arrampicata"), ("HIKER", "Escursionismo"),
+                ("RUNNER", "Trail running"), ("OTHER_ON_GROUND", "Altro")]
+_RULE_UI = {
+    "AUTO_CHUTE": {
+        "title": "Paracadute di emergenza",
+        "desc": "Transizione <code>descending_fast → landed</code> seguita da immobilità: sceso col paracadute, atterrato e fermo.",
+        "activities": _FLIGHT_OPTS, "param_key": "chute_immobile_s", "param_label": "Immobile per",
+    },
+    "AUTO_IMPACT": {
+        "title": "Impatto + immobile",
+        "desc": "Dopo un <code>impact</code>, fermo per il tempo indicato.",
+        "activities": _GROUND_OPTS, "param_key": "impact_recovery_s", "param_label": "Fermo per",
+    },
+    "AUTO_IMMOBILE": {
+        "title": "Immobilità prolungata",
+        "desc": "Fermo a lungo senza impatto recente. Spesso è solo una pausa: off di default.",
+        "activities": _GROUND_OPTS, "param_key": "immobile_emergency_s", "param_label": "Fermo per",
+    },
+}
+_RULE_ORDER = ["AUTO_CHUTE", "AUTO_IMPACT", "AUTO_IMMOBILE"]
+
+
+@app.get("/admin/emergency-settings", response_class=HTMLResponse)
+async def admin_emergency_settings(request: Request):
+    user, redir = require_admin(request)
+    if redir:
+        return redir
+    rules = {r["key"]: r for r in db.get_emergency_rules()}
+    cfg   = {r["key"]: r for r in db.get_all_config()}
+    rule_cards = []
+    for key in _RULE_ORDER:
+        r = rules.get(key)
+        if not r:
+            continue
+        ui    = _RULE_UI[key]
+        param = cfg.get(ui["param_key"])
+        rule_cards.append({
+            "key": key, "title": ui["title"], "desc": ui["desc"],
+            "activities": ui["activities"],
+            "applies_set": [a for a in (r["applies_to"] or "").split(",") if a],
+            "enabled": bool(r["enabled"]), "mode": r["mode"],
+            "param_key": ui["param_key"], "param_label": ui["param_label"],
+            "param_value": param["value"] if param else "",
+        })
+    globals_ = [cfg[k] for k in ("ack_cooldown_s", "pending_timeout_s") if k in cfg]
+    return templates.TemplateResponse(request, "emergency_settings.html", {
+        "user": user, "rule_cards": rule_cards, "globals": globals_,
+    })
+
+
+@app.post("/api/admin/rules")
+async def api_save_rules(request: Request):
+    _, redir = require_admin(request)
+    if redir:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    body = await request.json()   # {key: {enabled, applies_to: [...], mode}}
+    for key, r in body.items():
+        applies_to = ",".join(r.get("applies_to", []))
+        db.set_emergency_rule(key, bool(r.get("enabled", True)), applies_to, r.get("mode", "immediate"))
+    _invalidate_rules()
+    return JSONResponse({"ok": True})
 
 @app.post("/api/admin/config")
 async def api_save_config(request: Request):
@@ -728,28 +828,6 @@ async def api_delete_user(request: Request, uid: int):
 
 # ── Admin API used by the dashboard JS ────────────────────────────────────────
 
-# OGN/FLARM aircraft type codes -> label. Lets us tell paragliders and hang
-# gliders apart from powered traffic that also shows up on the feed.
-_OGN_KIND = {
-    1:  "GLIDER",
-    2:  "AIRCRAFT",     # tow plane
-    3:  "HELICOPTER",
-    4:  "SKYDIVER",
-    5:  "AIRCRAFT",     # drop plane
-    6:  "HANGGLIDER",
-    7:  "PARAGLIDER",
-    8:  "AIRCRAFT",     # powered
-    9:  "AIRCRAFT",     # jet
-    11: "BALLOON",
-    12: "AIRSHIP",
-    13: "UAV",
-}
-
-
-def _ogn_kind(aircraft_type) -> str:
-    return _OGN_KIND.get(aircraft_type, "UNKNOWN")
-
-
 @app.get("/api/admin/live")
 async def admin_live(request: Request):
     """All active users plus OGN traffic in the area. Used by the map poller."""
@@ -820,7 +898,7 @@ async def admin_live(request: Request):
             ogn_nome = o.get("display_name") or o["ogn_id"]
 
         # Activity precedence for an OGN beacon: device-declared > aircraft type.
-        attivita = o.get("device_activity") or _ogn_kind(o.get("aircraft_type"))
+        attivita = o.get("device_activity") or ogn_kind(o.get("aircraft_type"))
 
         entities.append({
             "id":       f"ogn_{o['ogn_id']}",

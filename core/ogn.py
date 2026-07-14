@@ -20,7 +20,7 @@ import db as _db
 from core.config import APRS_USER, APRS_PASS, AREA_LAT, AREA_LON, AREA_RADIUS_KM
 from core.notify import notify_emergency
 from core.state_machine import OgnTracker, update_ogn_sm, FlightState
-from core.emergency import EmergencyTrigger
+from core.emergency import EmergencyTrigger, ogn_kind, rule_active
 from core.terrain import compute_agl
 
 
@@ -122,44 +122,13 @@ def ogn_worker(stop_flag) -> None:
     """Main OGN thread. Uses the APRS geographic filter r/lat/lon/radius."""
     aprs_filter = f"r/{AREA_LAT}/{AREA_LON}/{AREA_RADIUS_KM}"
 
-    # Side thread: checks for signal loss and reloads the config
-    def _signal_lost_checker():
-        cycle = 0
+    # Side thread: keeps the OGN config cache fresh (60s).
+    def _config_reloader():
         while not stop_flag.is_set():
             stop_flag.wait(60)
-            cycle += 1
-            if cycle % 1 == 0:   # reload the config on every pass (60s)
-                _reload_ogn_cfg()
+            _reload_ogn_cfg()
 
-            cfg = _get_ogn_cfg()
-            now = datetime.now(timezone.utc)
-            lost_ids = []
-
-            with _trackers_lock:
-                for ogn_id, tracker in _ogn_trackers.items():
-                    if tracker.last_seen is None:
-                        continue
-                    # Signal lost: airborne with no update for > signal_lost_min minutes
-                    if tracker.state in (FlightState.AIRBORNE, FlightState.DESCENDING_FAST):
-                        silent_min = (now - tracker.last_seen).total_seconds() / 60.0
-                        if silent_min >= cfg.signal_lost_min:
-                            lost_ids.append(ogn_id)
-
-            for ogn_id in lost_ids:
-                print(f"  [OGN] signal lost: {ogn_id}")
-                last_beacons = _db.get_ogn_latest()
-                beacon = next((b for b in last_beacons if b["ogn_id"] == ogn_id), None)
-                if beacon:
-                    eid = _db.create_emergency(
-                        trigger=EmergencyTrigger.SIGNAL_LOST.value,
-                        lat=beacon.get("lat"), lon=beacon.get("lon"),
-                        alt_m=beacon.get("alt_m"),
-                        ogn_beacon_id=beacon["id"],
-                        note=f"Signal lost OGN: {ogn_id}",
-                    )
-                    notify_emergency(eid)
-
-    threading.Thread(target=_signal_lost_checker, daemon=True).start()
+    threading.Thread(target=_config_reloader, daemon=True).start()
 
     while not stop_flag.is_set():
         client = AuthAprsClient(aprs_user=APRS_USER, aprs_pass=APRS_PASS, aprs_filter=aprs_filter)
@@ -228,16 +197,22 @@ def ogn_worker(stop_flag) -> None:
             changed = update_ogn_sm(tracker, sm_beacon, cfg)
             _db.update_ogn_state(ogn_id, tracker.state)
 
-            # OGN emergency rule: DESCENDING_FAST -> LANDED means reserve chute
+            # OGN reserve-chute rule: DESCENDING_FAST -> LANDED. OGN can't confirm
+            # post-landing immobility (beacons usually stop), so it fires on the
+            # transition, gated by the rule being enabled for this aircraft type.
             if changed and old_state == FlightState.DESCENDING_FAST and tracker.state == FlightState.LANDED:
-                eid = _db.create_emergency(
-                    trigger=EmergencyTrigger.AUTO_CHUTE.value,
-                    lat=lat, lon=lon, alt_m=alt_m,
-                    ogn_beacon_id=beacon_id,
-                    note=f"OGN: {display_name}",
-                )
-                notify_emergency(eid)
-                print(f"  [OGN] AUTO_CHUTE: {display_name}")
+                kind = ogn_kind(aircraft_type)
+                if rule_active(_db.load_em_rules(), "AUTO_CHUTE", kind):
+                    eid = _db.create_emergency(
+                        trigger=EmergencyTrigger.AUTO_CHUTE.value,
+                        lat=lat, lon=lon, alt_m=alt_m,
+                        ogn_beacon_id=beacon_id,
+                        note=f"OGN: {display_name}",
+                    )
+                    notify_emergency(eid)
+                    print(f"  [OGN] AUTO_CHUTE: {display_name} ({kind})")
+                else:
+                    print(f"  [OGN] chute landing ignored: {display_name} ({kind})")
             else:
                 print(f"  [OGN] {display_name}: {tracker.state} "
                       f"alt={alt_m}m speed={speed_kmh}km/h vspeed={vspeed_ms}m/s")
