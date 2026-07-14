@@ -1053,7 +1053,7 @@ async def admin_emergencies_api(request: Request, resolved: str = "false"):
 
 @app.post("/admin/emergency/{eid}/resolve")
 async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
-    user, redir = require_admin(request)
+    user, redir = require_viewer(request)
     if redir:
         return redir
     if not note.strip():
