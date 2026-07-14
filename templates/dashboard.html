@@ -331,18 +331,23 @@ async function loadTrack(sessionId, color) {
   } catch(e) {}
 }
 
-async function update() {
-  const r = await fetch('/api/admin/live');
-  if (!r.ok) return;
-  entities = await r.json();
+// Draw only the filtered entities on the map, and wire pin clicks to selectEntity.
+function renderMarkers() {
+  const filtered = filteredEntities();
+  const shown = new Set(filtered.map(e => e.id));
 
-  const incoming = new Set(entities.map(e => e.id));
+  // drop markers no longer shown (filtered out or gone)
   for (const k of Object.keys(markers)) {
-    if (!incoming.has(k)) { markers[k].remove(); delete markers[k]; }
+    if (!shown.has(k)) { markers[k].remove(); delete markers[k]; }
+  }
+  // drop faint app tracks no longer shown
+  const shownSids = new Set(filtered.filter(e => e.source === 'APP' && e.session_id).map(e => 'sess_' + e.session_id));
+  for (const k of Object.keys(tracks)) {
+    if (!shownSids.has(k)) { tracks[k].remove(); delete tracks[k]; }
   }
 
   const bounds = [];
-  for (const e of entities) {
+  for (const e of filtered) {
     if (e.lat == null) continue;
     const icon  = entityIcon(e);
     const popup = buildPopup(e);
@@ -350,7 +355,9 @@ async function update() {
       markers[e.id].setLatLng([e.lat, e.lon]).setIcon(icon);
       markers[e.id].getPopup().setContent(popup);
     } else {
+      const id = e.id;
       markers[e.id] = L.marker([e.lat, e.lon], { icon }).bindPopup(popup).addTo(map);
+      markers[e.id].on('click', () => selectEntity(id));   // pin click → track + barogram
     }
     bounds.push([e.lat, e.lon]);
     if (e.source === 'APP' && e.session_id) loadTrack(e.session_id, '#3b82f6');
@@ -360,7 +367,13 @@ async function update() {
     map.fitBounds(bounds, { padding: [40, 40] });
     hasFitted = true;
   }
+}
 
+async function update() {
+  const r = await fetch('/api/admin/live');
+  if (!r.ok) return;
+  entities = await r.json();
+  renderMarkers();
   renderSidebar();
   loadEmergencies();
 }
@@ -436,11 +449,12 @@ function closeBaro() {
   setTimeout(() => map.invalidateSize(), 60);
 }
 
-document.getElementById('filter-emergency').addEventListener('change', renderSidebar);
+function applyFilters() { renderSidebar(); renderMarkers(); }
+document.getElementById('filter-emergency').addEventListener('change', applyFilters);
 document.querySelectorAll('.act-chip').forEach(c => {
   c.addEventListener('change', () => {
     c.closest('.chip').classList.toggle('on', c.checked);
-    renderSidebar();
+    applyFilters();
   });
 });
 
