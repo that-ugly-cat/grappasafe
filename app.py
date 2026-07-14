@@ -920,6 +920,7 @@ async def admin_live(request: Request):
 
         entities.append({
             "id":       f"ogn_{o['ogn_id']}",
+            "ogn_id":   o["ogn_id"],
             "source":   "OGN",
             "nome":     ogn_nome,
             "linked":   bool(owner),
@@ -941,14 +942,30 @@ async def admin_live(request: Request):
     return JSONResponse(entities)
 
 
+def _with_agl(track):
+    """Add agl_m to each track point (above ground level), for the barogram."""
+    for p in track:
+        if p.get("alt_m") is not None and p.get("lat") is not None and p.get("lon") is not None:
+            p["agl_m"] = compute_agl(p["lat"], p["lon"], p["alt_m"])
+    return track
+
+
 @app.get("/api/admin/track/{session_id}")
 async def admin_track(request: Request, session_id: int):
-    """Track of an app session for the admin map."""
+    """Track of an app session for the admin map, with AGL for the barogram."""
     _, redir = require_admin(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
-    track = db.get_track(session_id, limit=300)
-    return JSONResponse(track)
+    return JSONResponse(_with_agl(db.get_track(session_id, limit=300)))
+
+
+@app.get("/api/admin/ogn-track/{ogn_id}")
+async def admin_ogn_track(request: Request, ogn_id: str):
+    """Track of an OGN device, with AGL for the barogram."""
+    _, redir = require_admin(request)
+    if redir:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return JSONResponse(_with_agl(db.get_ogn_track(ogn_id, limit=300)))
 
 
 @app.get("/admin/emergencies", response_class=HTMLResponse)

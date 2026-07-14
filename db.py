@@ -502,6 +502,18 @@ def get_ogn_latest():
     return [dict(r) for r in rows]
 
 
+def get_ogn_track(ogn_id, limit=300):
+    """Time-ordered beacon track for one OGN device (oldest first)."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg
+        FROM ogn_beacons WHERE ogn_id=?
+        ORDER BY ts DESC LIMIT ?
+    """, (ogn_id, limit)).fetchall()
+    con.close()
+    return [dict(r) for r in reversed(rows)]
+
+
 def update_ogn_state(ogn_id, state):
     con = _conn()
     con.execute("""

@@ -84,9 +84,20 @@
     .emerg-item .emerg-meta { color: #999; margin-top: .2rem; }
     .emerg-item .resolve-btn { margin-top: .4rem; font-size: .78rem; background: #1a6a3a; color: white; border: none; border-radius: 3px; padding: .2rem .6rem; cursor: pointer; }
 
-    /* ── Map ── */
-    .map-wrap { flex: 1; position: relative; }
-    #admin-map { height: 100%; width: 100%; }
+    /* ── Filter chips ── */
+    .chip { font-size: .72rem; padding: .18rem .5rem; border-radius: 5px; border: 1px solid #3a3a5e; color: #888; cursor: pointer; user-select: none; }
+    .chip input { display: none; }
+    .chip.on { background: #23345a; border-color: #4a6aab; color: #cfe0ff; }
+
+    /* ── Map + barogram ── */
+    .map-wrap { flex: 1; position: relative; display: flex; flex-direction: column; }
+    #admin-map { flex: 1; width: 100%; }
+    .baro-panel { height: 210px; background: #12122a; border-top: 1px solid #2e2e4e; display: none; flex-direction: column; flex-shrink: 0; }
+    .baro-panel.open { display: flex; }
+    .baro-head { display: flex; align-items: center; gap: .6rem; padding: .35rem .8rem; font-size: .82rem; color: #ccc; border-bottom: 1px solid #23233e; }
+    .baro-head .close { margin-left: auto; cursor: pointer; color: #888; background: none; border: none; font-size: 1rem; }
+    .baro-head .close:hover { color: #fff; }
+    .baro-body { flex: 1; position: relative; padding: .3rem .6rem .5rem; }
 
     /* ── Map popup ── */
     .map-popup { font-size: .85rem; min-width: 180px; }
@@ -111,25 +122,19 @@
 
     <div class="sidebar-header">
       <div style="font-size:.85rem;font-weight:600;color:#aaa">ENTITÀ MONITORATE</div>
+      <div class="filters" id="attivita-chips">
+        <label class="chip on"><input type="checkbox" class="act-chip" value="PARAGLIDER" checked>Parapendio</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="HANGGLIDER" checked>Deltaplano</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="GLIDER" checked>Aliante</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="AIRCRAFT" checked>Aeromobile</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="HELICOPTER" checked>Elicottero</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="CYCLIST" checked>Ciclismo</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="CLIMBER" checked>Arrampicata</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="HIKER" checked>Escursionismo</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="RUNNER" checked>Trail</label>
+        <label class="chip on"><input type="checkbox" class="act-chip" value="OTHER_ON_GROUND" checked>Altro</label>
+      </div>
       <div class="filters">
-        <select id="filter-attivita">
-          <option value="">Tutte le attività</option>
-          <option value="PARAGLIDER">Parapendio</option>
-          <option value="HANGGLIDER">Deltaplano</option>
-          <option value="GLIDER">Aliante</option>
-          <option value="AIRCRAFT">Aeromobile</option>
-          <option value="HELICOPTER">Elicottero</option>
-          <option value="CYCLIST">Ciclismo</option>
-          <option value="CLIMBER">Arrampicata</option>
-          <option value="HIKER">Escursionismo</option>
-          <option value="RUNNER">Trail running</option>
-          <option value="OTHER_ON_GROUND">Altro</option>
-        </select>
-        <select id="filter-source">
-          <option value="">APP + OGN</option>
-          <option value="APP">Solo APP</option>
-          <option value="OGN">Solo OGN</option>
-        </select>
         <label><input type="checkbox" id="filter-emergency"> Solo emergenze</label>
       </div>
     </div>
@@ -149,14 +154,22 @@
   <!-- Toggle sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle" title="Mostra/nascondi sidebar">‹</button>
 
-  <!-- Map -->
+  <!-- Map + barogram -->
   <div class="map-wrap">
     <div id="admin-map"></div>
+    <div class="baro-panel" id="baro-panel">
+      <div class="baro-head">
+        <span id="baro-title">Barogramma</span>
+        <button class="close" onclick="closeBaro()" title="Chiudi">✕</button>
+      </div>
+      <div class="baro-body"><canvas id="baro-chart"></canvas></div>
+    </div>
   </div>
 
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const map = L.map('admin-map', { zoomControl: true }).setView([45.8526, 11.7713], 12);
 
@@ -230,13 +243,19 @@ function buildPopup(e) {
   </div>`;
 }
 
+const KNOWN_ACT  = new Set(['PARAGLIDER','HANGGLIDER','GLIDER','AIRCRAFT','HELICOPTER','CYCLIST','CLIMBER','HIKER','RUNNER','OTHER_ON_GROUND']);
+const GROUND_ACT = new Set(['CYCLIST','CLIMBER','HIKER','RUNNER','OTHER_ON_GROUND']);
+
+function selectedActivities() {
+  return new Set([...document.querySelectorAll('.act-chip:checked')].map(c => c.value));
+}
+
 function filteredEntities() {
-  const attivita  = document.getElementById('filter-attivita').value;
-  const source    = document.getElementById('filter-source').value;
+  const sel = selectedActivities();
   const emergOnly = document.getElementById('filter-emergency').checked;
   return entities.filter(e => {
-    if (attivita && e.attivita !== attivita) return false;
-    if (source   && e.source   !== source)   return false;
+    // known activities show only if their chip is on; unmapped ones always show
+    if (KNOWN_ACT.has(e.attivita) && !sel.has(e.attivita)) return false;
     if (emergOnly && e.state !== 'EMERGENCY' && e.state !== 'CRASH_LANDED') return false;
     return true;
   });
@@ -346,17 +365,83 @@ async function update() {
   loadEmergencies();
 }
 
-function selectEntity(id) {
+let baroChart = null, selTrack = null;
+
+async function selectEntity(id) {
   activeId = id;
   const e = entities.find(x => x.id === id);
-  if (!e || e.lat == null) return;
-  map.setView([e.lat, e.lon], 14);
-  if (markers[id]) markers[id].openPopup();
+  if (!e) return;
+  if (e.lat != null) { map.setView([e.lat, e.lon], 14); if (markers[id]) markers[id].openPopup(); }
   renderSidebar();
+  showBarogram(e);
 }
 
-['filter-attivita','filter-source','filter-emergency'].forEach(id => {
-  document.getElementById(id).addEventListener('change', renderSidebar);
+async function showBarogram(e) {
+  let url = null;
+  if (e.source === 'APP' && e.session_id) url = `/api/admin/track/${e.session_id}`;
+  else if (e.source === 'OGN' && e.ogn_id) url = `/api/admin/ogn-track/${encodeURIComponent(e.ogn_id)}`;
+  if (!url) { closeBaro(); return; }
+
+  let data;
+  try { data = await fetch(url).then(r => r.json()); } catch { return; }
+  if (!Array.isArray(data) || !data.length) { closeBaro(); return; }
+
+  // highlight the selected track on the map
+  const latlngs = data.filter(p => p.lat != null).map(p => [p.lat, p.lon]);
+  if (selTrack) selTrack.remove();
+  selTrack = L.polyline(latlngs, { color: '#ffd166', weight: 3, opacity: .95 }).addTo(map);
+
+  const isFlight = !GROUND_ACT.has(e.attivita);
+  const labels = data.map(p => p.ts ? p.ts.slice(11,19) : '');
+  const amsl = data.map(p => p.alt_m != null ? Math.round(p.alt_m) : null);
+  const agl  = data.map(p => p.agl_m != null ? Math.round(p.agl_m) : null);
+
+  const datasets = [{ label: 'AMSL', data: amsl, borderColor: '#4a9eff', pointRadius: 0, borderWidth: 2, tension: .2, spanGaps: true }];
+  if (isFlight) datasets.push({ label: 'AGL', data: agl, borderColor: '#ffd166', pointRadius: 0, borderWidth: 2, tension: .2, spanGaps: true });
+
+  document.getElementById('baro-title').textContent = `Barogramma — ${e.nome}` + (isFlight ? '' : ' (solo AMSL)');
+  document.getElementById('baro-panel').classList.add('open');
+  setTimeout(() => map.invalidateSize(), 60);
+
+  if (baroChart) baroChart.destroy();
+  baroChart = new Chart(document.getElementById('baro-chart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#aaa', boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            title: items => 'Ora ' + (items[0] ? items[0].label : ''),
+            label: item => `${item.dataset.label}: ${item.formattedValue} m`,
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#666', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#23233e' } },
+        y: { ticks: { color: '#666', font: { size: 10 }, callback: v => v + ' m' }, grid: { color: '#23233e' } },
+      }
+    }
+  });
+}
+
+function closeBaro() {
+  document.getElementById('baro-panel').classList.remove('open');
+  if (selTrack) { selTrack.remove(); selTrack = null; }
+  if (baroChart) { baroChart.destroy(); baroChart = null; }
+  activeId = null;
+  renderSidebar();
+  setTimeout(() => map.invalidateSize(), 60);
+}
+
+document.getElementById('filter-emergency').addEventListener('change', renderSidebar);
+document.querySelectorAll('.act-chip').forEach(c => {
+  c.addEventListener('change', () => {
+    c.closest('.chip').classList.toggle('on', c.checked);
+    renderSidebar();
+  });
 });
 
 document.getElementById('sidebar-toggle').addEventListener('click', () => {
