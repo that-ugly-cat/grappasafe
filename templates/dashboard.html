@@ -220,9 +220,11 @@ function entityIcon(e) {
 }
 
 function buildPopup(e) {
-  const alt   = e.alt_m   != null ? `${Math.round(e.alt_m)}m` : '—';
+  const altAgl  = e.agl_m != null ? `${Math.round(e.agl_m)}m` : '—';
+  const altAmsl = e.alt_m != null ? `${Math.round(e.alt_m)}m` : '—';
   const spd   = e.speed_kmh != null ? `${Math.round(e.speed_kmh)}km/h` : '—';
   const vspd  = e.vspeed_ms != null ? `${e.vspeed_ms.toFixed(1)}m/s` : '—';
+  const hdg   = e.course_deg != null ? `${Math.round(e.course_deg)}°` : '—';
   const bat   = e.battery != null ? `🔋${e.battery}%` : '';
   const ts    = e.ts ? e.ts.slice(11,16) : '';
   const mapLink = e.lat ? `<a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>` : '';
@@ -231,7 +233,8 @@ function buildPopup(e) {
     <strong>${e.nome}</strong>
     <span class="badge badge-${e.state}" style="margin-left:.4rem">${e.state}</span>
     <div class="popup-row">📡 ${e.source} · ${e.attivita}</div>
-    <div class="popup-row">⬆ ${alt} · ➡ ${spd} · ↕ ${vspd} ${bat}</div>
+    <div class="popup-row">⛰ AGL ${altAgl} · AMSL ${altAmsl}</div>
+    <div class="popup-row">➡ ${spd} · ↕ ${vspd} · 🧭 ${hdg} ${bat}</div>
     <div class="popup-row">${ts} ${mapLink} ${shareLink}</div>
   </div>`;
 }

@@ -742,6 +742,7 @@ async def admin_live(request: Request):
         pt = db.get_latest_point(s["id"])
         if not pt:
             continue
+        alt = pt.get("alt_m")
         entities.append({
             "id":       f"app_{s['id']}",
             "source":   "APP",
@@ -750,9 +751,11 @@ async def admin_live(request: Request):
             "state":    s["state"],
             "lat":      pt["lat"],
             "lon":      pt["lon"],
-            "alt_m":    pt.get("alt_m"),
+            "alt_m":    alt,
+            "agl_m":    compute_agl(pt["lat"], pt["lon"], alt) if alt is not None else None,
             "speed_kmh": pt.get("speed_kmh"),
             "vspeed_ms": pt.get("vspeed_ms"),
+            "course_deg": None,   # not tracked for app GPS points
             "battery":  pt.get("battery_pct"),
             "ts":       pt["ts"],
             "share_token": s["share_token"],
@@ -766,6 +769,7 @@ async def admin_live(request: Request):
             ogn_nome = f"{o.get('owner_nome') or ''} {o.get('owner_cognome') or ''}".strip()
         else:
             ogn_nome = o.get("display_name") or o["ogn_id"]
+        olat, olon, oalt = o.get("lat"), o.get("lon"), o.get("alt_m")
         entities.append({
             "id":       f"ogn_{o['ogn_id']}",
             "source":   "OGN",
@@ -773,11 +777,13 @@ async def admin_live(request: Request):
             "linked":   bool(o.get("owner_user_id")),
             "attivita": "PARAGLIDER",   # OGN defaults to flight
             "state":    o["state"],
-            "lat":      o.get("lat"),
-            "lon":      o.get("lon"),
-            "alt_m":    o.get("alt_m"),
+            "lat":      olat,
+            "lon":      olon,
+            "alt_m":    oalt,
+            "agl_m":    compute_agl(olat, olon, oalt) if (oalt is not None and olat is not None and olon is not None) else None,
             "speed_kmh": o.get("speed_kmh"),
             "vspeed_ms": o.get("vspeed_ms"),
+            "course_deg": o.get("course_deg"),
             "battery":  None,
             "ts":       o["ts"],
             "share_token": None,
