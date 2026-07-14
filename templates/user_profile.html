@@ -101,7 +101,7 @@
     {% if emergencies %}
       {% for e in emergencies %}
       <div class="em-row">
-        <span class="muted" style="width:110px;flex-shrink:0">{{ e.ts[:16] if e.ts else '—' }}</span>
+        <span class="muted" style="width:120px;flex-shrink:0">{{ (e.ts | localtime) if e.ts else '—' }}</span>
         <span class="trig" style="flex:1">{{ TRIG.get(e.trigger, e.trigger) }}</span>
         {% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 mappa</a>{% endif %}
         {% if e.resolved_at %}<span class="badge b-res">Risolta</span>{% else %}<span class="badge b-open">Aperta</span>{% endif %}

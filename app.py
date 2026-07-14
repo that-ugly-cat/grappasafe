@@ -95,6 +95,30 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# Timestamps are stored in UTC; display them in Rome local time. Europe/Rome
+# carries CET/CEST and DST via the tz database, so we never hardcode the offset.
+try:
+    from zoneinfo import ZoneInfo
+    _ROME = ZoneInfo("Europe/Rome")
+except Exception:
+    _ROME = timezone.utc
+
+
+def _localtime(ts, fmt="%d/%m/%Y %H:%M"):
+    """Jinja filter: UTC ISO timestamp -> Rome local time string."""
+    if not ts:
+        return "—"
+    try:
+        t = datetime.fromisoformat(str(ts))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t.astimezone(_ROME).strftime(fmt)
+    except Exception:
+        return str(ts)
+
+
+templates.env.filters["localtime"] = _localtime
+
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 

@@ -75,7 +75,10 @@ async function update() {
     document.getElementById("state-label").className = `state state-${d.session.state}`;
     const altStr = alt_m ? `${Math.round(alt_m)}m` : "—";
     const batStr = battery_pct != null ? `🔋${battery_pct}%` : "";
-    document.getElementById("meta-label").textContent = `Alt: ${altStr}  ${batStr}  ${ts.slice(11,16)}`;
+    let s = String(ts).replace(' ', 'T');
+    if (!/[zZ]$|[+\-]\d\d:?\d\d$/.test(s)) s += 'Z';
+    const timeStr = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }).format(new Date(s));
+    document.getElementById("meta-label").textContent = `Alt: ${altStr}  ${batStr}  ${timeStr}`;
   }
 }
 

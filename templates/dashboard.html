@@ -188,6 +188,25 @@ L.circle([45.85261987481419, 11.771344896002997], {
 
 let entities = [], markers = {}, tracks = {}, emergMarkers = {}, activeId = null, hasFitted = false;
 
+// UTC timestamp -> Rome local time (CET/CEST handled by the tz database).
+const _FMT_HM  = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+const _FMT_HMS = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const _FMT_DT  = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+function _toUtcDate(ts) {
+  if (!ts) return null;
+  let s = String(ts).trim().replace(' ', 'T');
+  if (!/[zZ]$|[+\-]\d\d:?\d\d$/.test(s)) s += 'Z';   // no tz info -> treat as UTC
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+function fmtLocal(ts, mode) {
+  const d = _toUtcDate(ts);
+  if (!d) return '—';
+  if (mode === 'sec') return _FMT_HMS.format(d);
+  if (mode === 'dt')  return _FMT_DT.format(d);
+  return _FMT_HM.format(d);
+}
+
 function arrowIcon(deg, color) {
   return L.divIcon({
     html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
@@ -230,7 +249,7 @@ function buildPopup(e) {
   const vspd  = e.vspeed_ms != null ? `${e.vspeed_ms.toFixed(1)}m/s` : '—';
   const hdg   = e.course_deg != null ? `${Math.round(e.course_deg)}°` : '—';
   const bat   = e.battery != null ? `🔋${e.battery}%` : '';
-  const ts    = e.ts ? e.ts.slice(11,16) : '';
+  const ts    = fmtLocal(e.ts);
   const mapLink = e.lat ? `<a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>` : '';
   const shareLink = e.share_token ? `<a href="/map/${e.share_token}" target="_blank">Mappa live</a>` : '';
   return `<div class="map-popup">
@@ -279,7 +298,7 @@ function renderSidebar() {
         ${e.attivita} ·
         ${e.alt_m != null ? Math.round(e.alt_m)+'m' : '—'} ·
         ${e.speed_kmh != null ? Math.round(e.speed_kmh)+'km/h' : '—'} ·
-        ${e.ts ? e.ts.slice(11,16) : '—'}
+        ${fmtLocal(e.ts)}
       </div>
     </div>
   `).join('');
@@ -296,7 +315,7 @@ function renderEmergencyMarkers(data) {
     if (e.lat == null) continue;
     const key = 'em_' + e.id;
     const popup = `<div class="map-popup"><strong>🆘 ${e.nome||''} ${e.cognome||''}</strong>
-      <div class="popup-row">${e.trigger} · ${e.ts ? e.ts.slice(0,16) : ''}</div>
+      <div class="popup-row">${e.trigger} · ${fmtLocal(e.ts, 'dt')}</div>
       <div class="popup-row"><a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a></div></div>`;
     if (emergMarkers[key]) {
       emergMarkers[key].setLatLng([e.lat, e.lon]);
@@ -319,7 +338,7 @@ async function loadEmergencies() {
     <div class="emerg-item">
       <div class="emerg-name">🆘 ${e.nome || ''} ${e.cognome || ''}</div>
       <div class="emerg-meta">
-        ${e.attivita || '—'} · ${e.trigger} · ${e.ts ? e.ts.slice(0,16) : ''}<br>
+        ${e.attivita || '—'} · ${e.trigger} · ${fmtLocal(e.ts, 'dt')}<br>
         📞 ${e.telefono || '—'} | 🩸 ${e.gruppo_sanguigno || '—'} | 🌐 ${e.lingua || 'it'}<br>
         ${e.note_salute ? '🏥 '+e.note_salute+'<br>' : ''}
         🆘 ${e.emergenza_contatto || '—'} — ${e.emergenza_telefono || '—'}
@@ -428,7 +447,7 @@ async function showBarogram(e) {
   selTrack = L.polyline(latlngs, { color: '#ffd166', weight: 3, opacity: .95 }).addTo(map);
 
   const isFlight = !GROUND_ACT.has(e.attivita);
-  const labels = data.map(p => p.ts ? p.ts.slice(11,19) : '');
+  const labels = data.map(p => fmtLocal(p.ts, 'sec'));
   const amsl = data.map(p => p.alt_m != null ? Math.round(p.alt_m) : null);
   const agl  = data.map(p => p.agl_m != null ? Math.round(p.agl_m) : null);
 

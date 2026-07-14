@@ -64,7 +64,7 @@
     <tbody id="rows">
       {% for e in emergencies %}
       <tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
-        <td>{{ e.ts[:16] if e.ts else '—' }}</td>
+        <td>{{ (e.ts | localtime) if e.ts else '—' }}</td>
         <td>
           {% if e.subject_user_id %}
             <a class="who-link" href="/admin/user/{{ e.subject_user_id }}">{{ e.nome }} {{ e.cognome }}</a>
@@ -77,7 +77,7 @@
         <td>
           {% if e.resolved_at %}
             <span class="badge b-res">Risolta</span>
-            <div class="meta">{{ e.resolved_at[:16] }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
+            <div class="meta">{{ e.resolved_at | localtime }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
           {% else %}
             <span class="badge b-open">Aperta</span>
           {% endif %}
