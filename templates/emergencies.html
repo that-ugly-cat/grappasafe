@@ -13,7 +13,9 @@
     .topbar a:hover, .topbar button:hover { color: white; }
     .topbar a.active { color: #fff; font-weight: 600; }
     .topbar .spacer { flex: 1; }
-    .content { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    .content { max-width: 1180px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    .table-wrap { overflow-x: auto; }
+    .note-cell { color: #bbb; max-width: 260px; font-size: .82rem; }
     h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
     .subtitle { color: #888; font-size: .9rem; margin-bottom: 1.4rem; }
     .filters { display: flex; gap: .5rem; margin-bottom: 1.2rem; }
@@ -52,18 +54,16 @@
 
   {% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute', 'AUTO_IMPACT': 'Impatto', 'AUTO_IMMOBILE': 'Immobilità'} %}
 
+  <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Contatti</th><th></th></tr>
+      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Contatti</th><th>Posizione</th><th>Note</th><th></th></tr>
     </thead>
     <tbody id="rows">
       {% for e in emergencies %}
       <tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
         <td>{{ e.ts[:16] if e.ts else '—' }}</td>
-        <td>
-          <div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div>
-          {% if e.lat %}<div class="meta"><a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 mappa</a></div>{% endif %}
-        </td>
+        <td><div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div></td>
         <td>{{ e.attivita or '—' }}</td>
         <td><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
         <td>
@@ -78,11 +78,14 @@
           {% if e.telefono %}📞 {{ e.telefono }}<br>{% endif %}
           {% if e.gruppo_sanguigno %}<span class="meta">🩸 {{ e.gruppo_sanguigno }}</span>{% endif %}
         </td>
+        <td>{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
+        <td class="note-cell">{{ e.note or '—' }}</td>
         <td>{% if not e.resolved_at %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% if not emergencies %}<div class="empty">Nessuna emergenza registrata.</div>{% endif %}
 </div>
 
