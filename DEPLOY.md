@@ -10,7 +10,7 @@ background thread, so there are no external services to run besides the app itse
 | `SECRET_KEY` | **yes, in production** | `change-me-in-production` | signs the session cookie — set a long random value |
 | `GRAPPASAFE_DB` | no | `grappasafe.db` | path to the SQLite file (`/data/grappasafe.db` in Docker) |
 | `AREA_LAT` / `AREA_LON` / `AREA_RADIUS_KM` | no | Monte Grappa, 19 km | monitoring area |
-| `APRS_USER` / `APRS_PASS` | no | `grappasafe` / `-1` | OGN/APRS login (`-1` = read-only) |
+| `APRS_USER` | no | `GSAFE1` | OGN/APRS receive callsign (passcode derived from it; keep it short and unique) |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | no | empty | Telegram notifications (skipped if empty) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `NOTIFY_EMAIL` | no | empty | email notifications (skipped if unset) |
 | `ADMIN_USER` / `ADMIN_PASS` / `ADMIN_NOME` / `ADMIN_COGNOME` | no | `admin` / `changeme` | initial admin, created by `seed.py` |

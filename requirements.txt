@@ -7,4 +7,5 @@ httpx
 python-dotenv
 python-multipart
 jinja2
-ogn-client
+ogn-client==2.0.0
+ogn-parser==0.3.15

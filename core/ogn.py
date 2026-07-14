@@ -24,6 +24,14 @@ from core.emergency import EmergencyTrigger
 from core.terrain import compute_agl
 
 
+def _bget(beacon, key):
+    """Read a field from a parsed beacon. Current ogn-parser returns a dict;
+    older versions returned an object with attributes."""
+    if isinstance(beacon, dict):
+        return beacon.get(key)
+    return getattr(beacon, key, None)
+
+
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     R  = 6371.0
     p1 = math.radians(lat1)
@@ -181,17 +189,17 @@ def ogn_worker(stop_flag) -> None:
             except Exception:
                 return
 
-            lat = getattr(beacon, "latitude", None)
-            lon = getattr(beacon, "longitude", None)
+            lat = _bget(beacon, "latitude")
+            lon = _bget(beacon, "longitude")
             if not in_area(lat, lon):
                 return
 
-            ogn_id       = getattr(beacon, "address", None) or getattr(beacon, "name", raw[:10])
-            display_name = getattr(beacon, "name", ogn_id)
-            alt_m        = getattr(beacon, "altitude", None)
-            speed_kmh    = getattr(beacon, "ground_speed", None)
-            vspeed_ms    = getattr(beacon, "climb_rate", None)
-            course_deg   = getattr(beacon, "track", None)
+            ogn_id       = _bget(beacon, "address") or _bget(beacon, "name") or raw[:10]
+            display_name = _bget(beacon, "name") or ogn_id
+            alt_m        = _bget(beacon, "altitude")
+            speed_kmh    = _bget(beacon, "ground_speed")
+            vspeed_ms    = _bget(beacon, "climb_rate")
+            course_deg   = _bget(beacon, "track")
             ts           = datetime.now(timezone.utc).isoformat()
 
             beacon_id = _db.write_ogn_beacon(
