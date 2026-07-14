@@ -420,7 +420,7 @@ async function update() {
   loadEmergencies();
 }
 
-let baroChart = null, selTrack = null;
+let baroChart = null, selTrack = null, baroData = [], hoverMarker = null;
 
 async function selectEntity(id) {
   activeId = id;
@@ -445,6 +445,8 @@ async function showBarogram(e) {
   const latlngs = data.filter(p => p.lat != null).map(p => [p.lat, p.lon]);
   if (selTrack) selTrack.remove();
   selTrack = L.polyline(latlngs, { color: '#ffd166', weight: 3, opacity: .95 }).addTo(map);
+  baroData = data;
+  hideHover();
 
   const isFlight = !GROUND_ACT.has(e.attivita);
   const labels = data.map(p => fmtLocal(p.ts, 'sec'));
@@ -465,6 +467,7 @@ async function showBarogram(e) {
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
+      onHover: (evt, active) => { if (active && active.length) moveHover(active[0].index); },
       plugins: {
         legend: { labels: { color: '#aaa', boxWidth: 12, font: { size: 11 } } },
         tooltip: {
@@ -482,14 +485,31 @@ async function showBarogram(e) {
   });
 }
 
+// Scrubber: move a semi-transparent marker along the track as you hover the barogram.
+function moveHover(i) {
+  const p = baroData[i];
+  if (!p || p.lat == null) return;
+  if (!hoverMarker) {
+    hoverMarker = L.circleMarker([p.lat, p.lon], {
+      radius: 8, color: '#ffd166', weight: 2, fillColor: '#ffd166', fillOpacity: .8, opacity: .8,
+    }).addTo(map);
+  } else {
+    hoverMarker.setLatLng([p.lat, p.lon]);
+    if (!map.hasLayer(hoverMarker)) hoverMarker.addTo(map);
+  }
+}
+function hideHover() { if (hoverMarker && map.hasLayer(hoverMarker)) map.removeLayer(hoverMarker); }
+
 function closeBaro() {
   document.getElementById('baro-panel').classList.remove('open');
   if (selTrack) { selTrack.remove(); selTrack = null; }
   if (baroChart) { baroChart.destroy(); baroChart = null; }
+  if (hoverMarker) { map.removeLayer(hoverMarker); hoverMarker = null; }
   activeId = null;
   renderSidebar();
   setTimeout(() => map.invalidateSize(), 60);
 }
+document.getElementById('baro-chart').addEventListener('mouseleave', hideHover);
 
 function applyFilters() { renderSidebar(); renderMarkers(); }
 document.getElementById('filter-emergency').addEventListener('change', applyFilters);
