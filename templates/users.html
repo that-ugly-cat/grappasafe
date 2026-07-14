@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utenti — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+
+    .topbar {
+      background: #12122a; padding: .6rem 1rem;
+      display: flex; align-items: center; gap: 1rem;
+      border-bottom: 1px solid #2e2e4e;
+    }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar .spacer { flex: 1; }
+
+    .content { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+
+    h2 { font-size: 1.4rem; margin-bottom: 1.5rem; color: #ddd; }
+
+    /* ── Tabella utenti ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th { background: #12122a; padding: .6rem .8rem; text-align: left; color: #888; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #2e2e4e; }
+    td { padding: .6rem .8rem; border-bottom: 1px solid #22223a; vertical-align: middle; }
+    tr:hover td { background: #1e1e3a; }
+
+    .badge-role-admin { background: #4a1a7a; color: #d8b4fe; padding: .15rem .5rem; border-radius: 3px; font-size: .75rem; font-weight: 700; }
+    .badge-role-user  { background: #1a3a5a; color: #93c5fd; padding: .15rem .5rem; border-radius: 3px; font-size: .75rem; font-weight: 700; }
+
+    .btn { padding: .35rem .8rem; border-radius: 5px; border: none; cursor: pointer; font-size: .82rem; font-weight: 600; }
+    .btn-edit   { background: #1a4a7a; color: #93c5fd; }
+    .btn-delete { background: #5a1a1a; color: #fca5a5; }
+    .btn-edit:hover   { background: #1e5a9a; }
+    .btn-delete:hover { background: #7a2a2a; }
+    .btn-primary { background: #e63946; color: white; }
+    .btn-primary:hover { background: #c02030; }
+    .btn-cancel  { background: #2e2e4e; color: #aaa; }
+    .btn-cancel:hover { background: #3a3a5e; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #1e1e3a; border: 1px solid #3a3a5e; border-radius: 10px;
+      padding: 1.5rem; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { margin-bottom: 1.2rem; font-size: 1.1rem; color: #ddd; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: .82rem; color: #888; margin-bottom: .3rem; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; background: #12122a; color: #eee;
+      border: 1px solid #3a3a5e; border-radius: 6px; padding: .5rem .7rem; font-size: .9rem;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #e63946; }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .form-row { display: flex; gap: .8rem; }
+    .form-row .form-group { flex: 1; }
+
+    .modal-actions { display: flex; gap: .8rem; justify-content: flex-end; margin-top: 1.2rem; }
+
+    .flash { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: .9rem; }
+    .flash-success { background: #1a3a1a; color: #86efac; border: 1px solid #2a5a2a; }
+    .flash-error   { background: #3a1a1a; color: #fca5a5; border: 1px solid #5a2a2a; }
+
+    .new-user-btn { margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
+  <strong>🏔 GrappaSafe</strong>
+  <span style="color:#555">|</span>
+  <a href="/dashboard">Dashboard</a>
+  <a href="/admin/config">Config</a>
+  <div class="spacer"></div>
+  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
+  <form method="post" action="/logout" style="display:inline">
+    <button type="submit">Esci</button>
+  </form>
+</div>
+
+<div class="content">
+  <h2>Gestione utenti</h2>
+
+  <div id="flash-area"></div>
+
+  <button class="btn btn-primary new-user-btn" onclick="openCreate()">+ Nuovo utente</button>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Nome</th>
+          <th>Telefono</th>
+          <th>Gruppo sang.</th>
+          <th>FLARM ID</th>
+          <th>Ruolo</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody">
+        <tr><td colspan="7" style="color:#555;padding:1rem">Caricamento...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal crea/modifica utente -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h3 id="modal-title">Nuovo utente</h3>
+    <form id="user-form">
+      <input type="hidden" id="field-id">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome *</label>
+          <input type="text" id="field-nome" required>
+        </div>
+        <div class="form-group">
+          <label>Cognome *</label>
+          <input type="text" id="field-cognome" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Username *</label>
+        <input type="text" id="field-username" required autocomplete="off">
+      </div>
+
+      <div class="form-group" id="password-group">
+        <label>Password <span id="password-hint" style="color:#555">(lascia vuoto per non cambiare)</span></label>
+        <input type="password" id="field-password" autocomplete="new-password">
+      </div>
+
+      <div class="form-group">
+        <label>Ruolo</label>
+        <select id="field-role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefono</label>
+          <input type="text" id="field-telefono">
+        </div>
+        <div class="form-group">
+          <label>Gruppo sanguigno</label>
+          <input type="text" id="field-gruppo-sanguigno" placeholder="es. A+">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contatto emergenza</label>
+          <input type="text" id="field-emergenza-contatto">
+        </div>
+        <div class="form-group">
+          <label>Tel. emergenza</label>
+          <input type="text" id="field-emergenza-telefono">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>FLARM ID</label>
+          <input type="text" id="field-flarm-id" placeholder="es. DD1234">
+        </div>
+        <div class="form-group">
+          <label>Lingua</label>
+          <select id="field-lingua">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Note salute</label>
+        <textarea id="field-note-salute" placeholder="Allergie, patologie, farmaci..."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-cancel" onclick="closeModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary" id="modal-submit">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let currentUserId = null;  // null = creazione, number = modifica
+
+async function loadUsers() {
+  const r = await fetch('/api/admin/users');
+  const users = await r.json();
+  const tbody = document.getElementById('users-tbody');
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#555;padding:1rem">Nessun utente.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td><strong>${u.username}</strong></td>
+      <td>${u.nome} ${u.cognome}</td>
+      <td>${u.telefono || '—'}</td>
+      <td>${u.gruppo_sanguigno || '—'}</td>
+      <td style="font-family:monospace;font-size:.85rem">${u.flarm_id || '—'}</td>
+      <td><span class="badge-role-${u.role}">${u.role}</span></td>
+      <td style="display:flex;gap:.4rem">
+        <button class="btn btn-edit" onclick='openEdit(${JSON.stringify(u)})'>Modifica</button>
+        <button class="btn btn-delete" onclick="deleteUser(${u.id}, '${u.username}')">Elimina</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openCreate() {
+  currentUserId = null;
+  document.getElementById('modal-title').textContent = 'Nuovo utente';
+  document.getElementById('modal-submit').textContent = 'Crea utente';
+  document.getElementById('password-hint').style.display = 'none';
+  document.getElementById('field-password').required = true;
+  clearForm();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEdit(u) {
+  currentUserId = u.id;
+  document.getElementById('modal-title').textContent = `Modifica — ${u.username}`;
+  document.getElementById('modal-submit').textContent = 'Salva modifiche';
+  document.getElementById('password-hint').style.display = '';
+  document.getElementById('field-password').required = false;
+  // populate
+  document.getElementById('field-id').value = u.id;
+  document.getElementById('field-nome').value = u.nome || '';
+  document.getElementById('field-cognome').value = u.cognome || '';
+  document.getElementById('field-username').value = u.username || '';
+  document.getElementById('field-password').value = '';
+  document.getElementById('field-role').value = u.role || 'user';
+  document.getElementById('field-telefono').value = u.telefono || '';
+  document.getElementById('field-gruppo-sanguigno').value = u.gruppo_sanguigno || '';
+  document.getElementById('field-emergenza-contatto').value = u.emergenza_contatto || '';
+  document.getElementById('field-emergenza-telefono').value = u.emergenza_telefono || '';
+  document.getElementById('field-flarm-id').value = u.flarm_id || '';
+  document.getElementById('field-lingua').value = u.lingua || 'it';
+  document.getElementById('field-note-salute').value = u.note_salute || '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function clearForm() {
+  ['id','nome','cognome','username','password','telefono',
+   'gruppo-sanguigno','emergenza-contatto','emergenza-telefono',
+   'flarm-id','note-salute'].forEach(f => {
+    const el = document.getElementById('field-'+f);
+    if (el) el.value = '';
+  });
+  document.getElementById('field-role').value = 'user';
+  document.getElementById('field-lingua').value = 'it';
+}
+
+document.getElementById('user-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    nome:                document.getElementById('field-nome').value.trim(),
+    cognome:             document.getElementById('field-cognome').value.trim(),
+    username:            document.getElementById('field-username').value.trim(),
+    password:            document.getElementById('field-password').value,
+    role:                document.getElementById('field-role').value,
+    telefono:            document.getElementById('field-telefono').value.trim(),
+    gruppo_sanguigno:    document.getElementById('field-gruppo-sanguigno').value.trim(),
+    emergenza_contatto:  document.getElementById('field-emergenza-contatto').value.trim(),
+    emergenza_telefono:  document.getElementById('field-emergenza-telefono').value.trim(),
+    flarm_id:            document.getElementById('field-flarm-id').value.trim(),
+    lingua:              document.getElementById('field-lingua').value,
+    note_salute:         document.getElementById('field-note-salute').value.trim(),
+  };
+
+  let url, method;
+  if (currentUserId) {
+    url = `/api/admin/users/${currentUserId}`;
+    method = 'PUT';
+  } else {
+    url = '/api/admin/users';
+    method = 'POST';
+  }
+
+  const r = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    flash(data.detail || 'Errore', 'error');
+    return;
+  }
+  closeModal();
+  flash(currentUserId ? 'Utente aggiornato.' : 'Utente creato.', 'success');
+  loadUsers();
+});
+
+async function deleteUser(id, username) {
+  if (!confirm(`Eliminare l'utente "${username}"? L'operazione è irreversibile.`)) return;
+  const r = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+  const data = await r.json();
+  if (!r.ok) { flash(data.detail || 'Errore', 'error'); return; }
+  flash('Utente eliminato.', 'success');
+  loadUsers();
+}
+
+function flash(msg, type) {
+  const area = document.getElementById('flash-area');
+  area.innerHTML = `<div class="flash flash-${type}">${msg}</div>`;
+  setTimeout(() => area.innerHTML = '', 4000);
+}
+
+// Chiudi cliccando fuori dal modal
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+
+loadUsers();
+</script>
+</body>
+</html>

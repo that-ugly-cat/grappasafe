@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}I miei device — GrappaSafe{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2 style="margin-bottom:.3rem">Ciao {{ user.nome }} 👋</h2>
+  <p style="color:#666">
+    Da qui gestisci i tuoi <strong>device OGN/FLARM</strong> e il tuo profilo.
+    Abbinare un device permette al sistema di riconoscerti anche quando voli
+    tracciato solo dall'OGN: in caso di emergenza i soccorritori vedono subito
+    nome, telefono e dati medici.
+  </p>
+  <div style="margin-top:1rem">
+    <a href="/profile" class="btn btn-primary">Modifica profilo e dati medici</a>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+    <h3>I miei device OGN</h3>
+    <button class="btn btn-success" onclick="openForm()">+ Aggiungi device</button>
+  </div>
+
+  <div id="devices-list">
+    {% if not devices %}
+      <p style="color:#888">Nessun device abbinato. Aggiungi il tuo FLARM/OGN per essere riconosciuto in volo.</p>
+    {% endif %}
+  </div>
+
+  <!-- Add/edit form -->
+  <div id="device-form" style="display:none;margin-top:1rem;border-top:1px solid #eee;padding-top:1rem">
+    <input type="hidden" id="dev-id">
+    <label>Nome del device
+      <input type="text" id="dev-name" placeholder="es. Vela rossa, Ozone Rush">
+    </label>
+    <label>OGN / FLARM ID
+      <input type="text" id="dev-ogn" placeholder="es. DDA123 (indirizzo esadecimale del transponder)">
+    </label>
+    <p style="color:#888;font-size:.85rem;margin-top:.3rem">
+      Lo trovi nella configurazione del tuo FLARM/OGN tracker, o su
+      <a href="https://www.glidernet.org/" target="_blank" rel="noopener">glidernet.org</a> /
+      <a href="https://ogn.flarm.com/" target="_blank" rel="noopener">OGN device database</a>.
+    </p>
+    <label>Colore sulla mappa
+      <input type="color" id="dev-color" value="#3b82f6" style="width:60px;height:38px;padding:2px">
+    </label>
+    <div style="margin-top:1rem">
+      <button class="btn btn-primary" onclick="saveDevice()">Salva</button>
+      <button class="btn" onclick="closeForm()" style="margin-left:.5rem">Annulla</button>
+      <span id="dev-error" class="error"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+let devices = {{ devices | tojson }};
+
+function render() {
+  const el = document.getElementById('devices-list');
+  if (!devices.length) {
+    el.innerHTML = '<p style="color:#888">Nessun device abbinato. Aggiungi il tuo FLARM/OGN per essere riconosciuto in volo.</p>';
+    return;
+  }
+  el.innerHTML = devices.map(d => `
+    <div style="display:flex;align-items:center;gap:.8rem;padding:.6rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="width:16px;height:16px;border-radius:50%;background:${d.color};flex-shrink:0"></span>
+      <div style="flex:1">
+        <div style="font-weight:600">${escapeHtml(d.display_name)}</div>
+        <div style="color:#888;font-size:.85rem">${d.ogn_id ? 'OGN/FLARM: ' + escapeHtml(d.ogn_id) : '⚠ nessun ID OGN — non verrà riconosciuto'}</div>
+      </div>
+      <button class="btn" onclick="editDevice(${d.id})">Modifica</button>
+      <button class="btn btn-danger" onclick="deleteDevice(${d.id})">Elimina</button>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function openForm() {
+  document.getElementById('dev-id').value = '';
+  document.getElementById('dev-name').value = '';
+  document.getElementById('dev-ogn').value = '';
+  document.getElementById('dev-color').value = '#3b82f6';
+  document.getElementById('dev-error').textContent = '';
+  document.getElementById('device-form').style.display = 'block';
+}
+
+function closeForm() {
+  document.getElementById('device-form').style.display = 'none';
+}
+
+function editDevice(id) {
+  const d = devices.find(x => x.id === id);
+  if (!d) return;
+  document.getElementById('dev-id').value = d.id;
+  document.getElementById('dev-name').value = d.display_name;
+  document.getElementById('dev-ogn').value = d.ogn_id || '';
+  document.getElementById('dev-color').value = d.color || '#3b82f6';
+  document.getElementById('dev-error').textContent = '';
+  document.getElementById('device-form').style.display = 'block';
+}
+
+async function saveDevice() {
+  const id    = document.getElementById('dev-id').value;
+  const name  = document.getElementById('dev-name').value.trim();
+  const ogn   = document.getElementById('dev-ogn').value.trim();
+  const color = document.getElementById('dev-color').value;
+  const errEl = document.getElementById('dev-error');
+  if (!name) { errEl.textContent = 'Il nome è obbligatorio'; return; }
+
+  const payload = { display_name: name, ogn_id: ogn, color };
+  const url    = id ? `/api/me/devices/${id}` : '/api/me/devices';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+  });
+  if (!res.ok) { errEl.textContent = 'Errore nel salvataggio'; return; }
+  await reload();
+  closeForm();
+}
+
+async function deleteDevice(id) {
+  if (!confirm('Eliminare questo device?')) return;
+  const res = await fetch(`/api/me/devices/${id}`, { method: 'DELETE' });
+  if (res.ok) await reload();
+}
+
+async function reload() {
+  const res = await fetch('/api/me/devices');
+  if (res.ok) { devices = await res.json(); render(); }
+}
+
+render();
+</script>
+{% endblock %}

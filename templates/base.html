@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}GrappaSafe{% endblock %}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    nav { background: #1a1a2e; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    nav a { color: #ccc; text-decoration: none; margin-left: 1rem; }
+    nav a:hover { color: white; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .btn { display: inline-block; padding: .5rem 1.2rem; border-radius: 6px; border: none; cursor: pointer; font-size: 1rem; text-decoration: none; }
+    .btn-primary { background: #1a1a2e; color: white; }
+    .btn-danger  { background: #c0392b; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-emergency { background: #e74c3c; color: white; font-size: 1.4rem; padding: 1rem 2rem; width: 100%; border-radius: 12px; }
+    .error { color: #c0392b; margin-top: .5rem; }
+    input, select, textarea { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; margin-top: .3rem; font-size: 1rem; }
+    label { font-weight: 500; display: block; margin-top: .8rem; }
+    .badge { display: inline-block; padding: .2rem .6rem; border-radius: 4px; font-size: .85rem; font-weight: 600; }
+    .badge-ground    { background: #ecf0f1; color: #555; }
+    .badge-airborne  { background: #3498db; color: white; }
+    .badge-emergency { background: #e74c3c; color: white; }
+    .badge-active    { background: #27ae60; color: white; }
+    .badge-impact    { background: #e67e22; color: white; }
+  </style>
+</head>
+<body>
+{% block nav %}
+<nav>
+  <span style="display:flex;align-items:center;gap:.6rem">
+    <img src="/static/logo-consorzio.png" alt="Vivere il Grappa"
+         style="height:34px;background:#fff;border-radius:5px;padding:2px 5px">
+    <strong>🏔 GrappaSafe</strong>
+  </span>
+  <div>
+    {% if user %}
+      {% if user.role == 'admin' %}<a href="/dashboard">Dashboard</a>{% endif %}
+      <a href="/me">I miei device</a>
+      <a href="/profile">Profilo</a>
+      <form method="post" action="/logout" style="display:inline">
+        <button type="submit" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:1rem;margin-left:1rem">Esci</button>
+      </form>
+    {% endif %}
+  </div>
+</nav>
+{% endblock %}
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

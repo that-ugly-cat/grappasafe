@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Profilo — GrappaSafe{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin-bottom:1rem">Profilo personale</h2>
+  <form method="post" action="/profile">
+    <label>Nome <input type="text" name="nome" value="{{ user.nome }}" required></label>
+    <label>Cognome <input type="text" name="cognome" value="{{ user.cognome }}" required></label>
+    <label>Telefono <input type="tel" name="telefono" value="{{ user.telefono or '' }}"></label>
+    <hr style="margin:1.2rem 0">
+    <h4>Contatto emergenza</h4>
+    <label>Nome contatto <input type="text" name="emergenza_contatto" value="{{ user.emergenza_contatto or '' }}"></label>
+    <label>Telefono contatto <input type="tel" name="emergenza_telefono" value="{{ user.emergenza_telefono or '' }}"></label>
+    <hr style="margin:1.2rem 0">
+    <h4>Dati medici (visibili ai soccorritori)</h4>
+    <label>Gruppo sanguigno <input type="text" name="gruppo_sanguigno" value="{{ user.gruppo_sanguigno or '' }}" placeholder="es. A+"></label>
+    <label>Note salute <textarea name="note_salute" rows="3" placeholder="Allergie, farmaci, patologie rilevanti">{{ user.note_salute or '' }}</textarea></label>
+    <hr style="margin:1.2rem 0">
+    <label>Lingua preferita
+      <select name="lingua">
+        <option value="it" {% if user.lingua == 'it' %}selected{% endif %}>Italiano</option>
+        <option value="en" {% if user.lingua == 'en' %}selected{% endif %}>English</option>
+        <option value="de" {% if user.lingua == 'de' %}selected{% endif %}>Deutsch</option>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary" style="margin-top:1.2rem">Salva</button>
+    <a href="/me" class="btn" style="margin-left:.5rem">Annulla</a>
+  </form>
+  <p style="color:#888;font-size:.9rem;margin-top:1rem">
+    I dispositivi OGN/FLARM si gestiscono nella pagina
+    <a href="/me">I miei device</a>.
+  </p>
+</div>
+{% endblock %}

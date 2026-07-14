@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+starlette
+itsdangerous
+bcrypt
+httpx
+python-dotenv
+python-multipart
+jinja2
+ogn-client

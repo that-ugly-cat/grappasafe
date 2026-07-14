@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ user.nome }} {{ user.cognome }} — GrappaSafe</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    #info {
+      position: absolute; top: 1rem; left: 50%; transform: translateX(-50%);
+      background: white; padding: .6rem 1.2rem; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 1000; text-align: center;
+      min-width: 200px;
+    }
+    #info h3 { font-size: 1rem; }
+    #info .state { font-weight: 700; margin-top: .2rem; }
+    #info .meta { font-size: .8rem; color: #777; margin-top: .2rem; }
+    .state-EMERGENCY { color: #e74c3c; }
+    .state-AIRBORNE  { color: #3498db; }
+    .state-ACTIVE    { color: #27ae60; }
+  </style>
+</head>
+<body>
+<div id="info">
+  <h3>{{ user.nome }} {{ user.cognome }}</h3>
+  <div class="state" id="state-label">
+    {% if session %}{{ session.attivita }} — {{ session.state }}{% else %}Nessuna sessione attiva{% endif %}
+  </div>
+  <div class="meta" id="meta-label">Aggiornamento live ogni 15s</div>
+</div>
+<div id="map"></div>
+
+<script>
+const TOKEN = "{{ user.share_token }}";
+const map = L.map("map").setView([45.8526, 11.7713], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap"
+}).addTo(map);
+
+// Cerchio area monitoraggio
+L.circle([45.85261987481419, 11.771344896002997], {
+  radius: 19000, color: "#3498db", fillOpacity: 0.04, weight: 1
+}).addTo(map);
+
+let polyline = L.polyline([], {color: "#e74c3c", weight: 3}).addTo(map);
+let marker   = null;
+
+async function update() {
+  const r = await fetch(`/api/map/${TOKEN}`);
+  if (!r.ok) return;
+  const d = await r.json();
+
+  if (!d.active) {
+    document.getElementById("state-label").textContent = "Nessuna sessione attiva";
+    return;
+  }
+
+  const coords = d.track.map(p => [p.lat, p.lon]);
+  polyline.setLatLngs(coords);
+
+  if (d.latest) {
+    const {lat, lon, alt_m, battery_pct, ts} = d.latest;
+    if (!marker) {
+      marker = L.marker([lat, lon]).addTo(map);
+      map.setView([lat, lon], 14);
+    } else {
+      marker.setLatLng([lat, lon]);
+    }
+    const stateLabel = `${d.session.attivita} — ${d.session.state}`;
+    document.getElementById("state-label").textContent = stateLabel;
+    document.getElementById("state-label").className = `state state-${d.session.state}`;
+    const altStr = alt_m ? `${Math.round(alt_m)}m` : "—";
+    const batStr = battery_pct != null ? `🔋${battery_pct}%` : "";
+    document.getElementById("meta-label").textContent = `Alt: ${altStr}  ${batStr}  ${ts.slice(11,16)}`;
+  }
+}
+
+update();
+setInterval(update, 15000);
+</script>
+</body>
+</html>

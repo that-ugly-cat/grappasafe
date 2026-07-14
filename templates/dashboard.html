@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — GrappaSafe</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ── Topbar ── */
+    .topbar {
+      background: #12122a; padding: .6rem 1rem;
+      display: flex; align-items: center; gap: 1rem;
+      border-bottom: 1px solid #2e2e4e; flex-shrink: 0; z-index: 1000;
+    }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar .spacer { flex: 1; }
+
+    /* ── Layout ── */
+    .app-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 320px; min-width: 220px; max-width: 400px;
+      background: #1e1e3a; border-right: 1px solid #2e2e4e;
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: width .25s;
+    }
+    .sidebar.collapsed { width: 0; min-width: 0; border: none; }
+
+    .sidebar-toggle {
+      position: absolute; left: 320px; top: 50%; transform: translateY(-50%);
+      z-index: 900; background: #2e2e4e; border: none; color: #aaa;
+      width: 16px; height: 40px; cursor: pointer; border-radius: 0 4px 4px 0;
+      transition: left .25s;
+    }
+    .sidebar.collapsed + .sidebar-toggle { left: 0; }
+
+    .sidebar-header {
+      padding: .7rem 1rem; border-bottom: 1px solid #2e2e4e;
+      display: flex; flex-direction: column; gap: .5rem; flex-shrink: 0;
+    }
+    .filters { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .filters select, .filters input[type=checkbox] { font-size: .82rem; background: #12122a; color: #ccc; border: 1px solid #3a3a5e; border-radius: 4px; padding: .2rem .4rem; }
+    .filters label { font-size: .82rem; color: #aaa; display: flex; align-items: center; gap: .3rem; }
+
+    .sidebar-list { flex: 1; overflow-y: auto; padding: .4rem 0; }
+
+    .entity-card {
+      padding: .6rem 1rem; border-bottom: 1px solid #2a2a46;
+      cursor: pointer; transition: background .15s;
+    }
+    .entity-card:hover, .entity-card.active { background: #252545; }
+    .entity-card .name { font-weight: 600; font-size: .95rem; }
+    .entity-card .meta { font-size: .78rem; color: #888; margin-top: .2rem; }
+    .entity-card .badge { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .72rem; font-weight: 700; }
+    .badge-GROUND         { background: #3a3a5e; color: #aaa; }
+    .badge-AIRBORNE       { background: #1a6fa8; color: white; }
+    .badge-ACTIVE         { background: #1a6a3a; color: white; }
+    .badge-IMMOBILE       { background: #7a6a1a; color: white; }
+    .badge-IMPACT         { background: #a05010; color: white; }
+    .badge-EMERGENCY      { background: #a01020; color: white; animation: pulse 1s infinite; }
+    .badge-EMERGENCY_CHUTE { background: #c05000; color: white; }
+    .badge-LANDED         { background: #2a6a2a; color: white; }
+    .badge-CRASH_LANDED   { background: #a03000; color: white; }
+    .badge-UNKNOWN        { background: #3a3a3a; color: #aaa; }
+    .badge-source-APP { background: #1a5a8a; color: white; font-size: .65rem; }
+    .badge-source-OGN { background: #4a2a8a; color: white; font-size: .65rem; }
+
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+
+    .emerg-panel {
+      border-top: 2px solid #a01020; flex-shrink: 0;
+      max-height: 280px; overflow-y: auto;
+    }
+    .emerg-panel h4 { padding: .5rem 1rem; background: #2a0a12; font-size: .85rem; color: #e55; }
+    .emerg-item { padding: .5rem 1rem; border-bottom: 1px solid #3a1a22; font-size: .82rem; }
+    .emerg-item .emerg-name { font-weight: 600; color: #f88; }
+    .emerg-item .emerg-meta { color: #999; margin-top: .2rem; }
+    .emerg-item .resolve-btn { margin-top: .4rem; font-size: .78rem; background: #1a6a3a; color: white; border: none; border-radius: 3px; padding: .2rem .6rem; cursor: pointer; }
+
+    /* ── Map ── */
+    .map-wrap { flex: 1; position: relative; }
+    #admin-map { height: 100%; width: 100%; }
+
+    /* ── Map popup ── */
+    .map-popup { font-size: .85rem; min-width: 180px; }
+    .map-popup strong { font-size: 1rem; }
+    .map-popup .popup-row { margin-top: .3rem; color: #555; }
+    .map-popup a { color: #3498db; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #3a3a6e; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
+  <strong>🏔 GrappaSafe</strong>
+  <span style="color:#555">|</span>
+  <span style="color:#aaa;font-size:.9rem">Dashboard</span>
+  <div class="spacer"></div>
+  <a href="/admin/users">Utenti</a>
+  <a href="/admin/config">Config</a>
+  <span style="color:#555">|</span>
+  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
+  <form method="post" action="/logout" style="display:inline">
+    <button type="submit">Esci</button>
+  </form>
+</div>
+
+<div class="app-body" style="position:relative">
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+
+    <div class="sidebar-header">
+      <div style="font-size:.85rem;font-weight:600;color:#aaa">ENTITÀ MONITORATE</div>
+      <div class="filters">
+        <select id="filter-attivita">
+          <option value="">Tutte le attività</option>
+          <option value="PARAGLIDER">Parapendio</option>
+          <option value="HANGGLIDER">Deltaplano</option>
+          <option value="CYCLIST">Ciclismo</option>
+          <option value="CLIMBER">Arrampicata</option>
+          <option value="HIKER">Escursionismo</option>
+          <option value="RUNNER">Trail running</option>
+          <option value="OTHER_ON_GROUND">Altro</option>
+        </select>
+        <select id="filter-source">
+          <option value="">APP + OGN</option>
+          <option value="APP">Solo APP</option>
+          <option value="OGN">Solo OGN</option>
+        </select>
+        <label><input type="checkbox" id="filter-emergency"> Solo emergenze</label>
+      </div>
+    </div>
+
+    <div class="sidebar-list" id="entity-list">
+      <div style="padding:1rem;color:#666;font-size:.85rem">Caricamento...</div>
+    </div>
+
+    <!-- Open emergencies panel -->
+    <div class="emerg-panel" id="emerg-panel" style="display:none">
+      <h4>🆘 EMERGENZE APERTE</h4>
+      <div id="emerg-list"></div>
+    </div>
+
+  </div>
+
+  <!-- Toggle sidebar -->
+  <button class="sidebar-toggle" id="sidebar-toggle" title="Mostra/nascondi sidebar">‹</button>
+
+  <!-- Map -->
+  <div class="map-wrap">
+    <div id="admin-map"></div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('admin-map', { zoomControl: true }).setView([45.8526, 11.7713], 12);
+
+const osmLayer  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19,
+});
+const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap | © OpenTopoMap', maxZoom: 17,
+});
+osmLayer.addTo(map);
+L.control.layers({ 'OSM': osmLayer, 'Topo': topoLayer }, {}, { position: 'topright' }).addTo(map);
+
+L.circle([45.85261987481419, 11.771344896002997], {
+  radius: 19000, color: '#4a6aff', fillOpacity: 0.04, weight: 1.5, dashArray: '6,4',
+}).addTo(map);
+
+let entities = [], markers = {}, tracks = {}, activeId = null, hasFitted = false;
+
+function arrowIcon(deg, color) {
+  return L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+      <g transform="rotate(${deg||0},15,15)">
+        <polygon points="15,3 25,25 15,19 5,25"
+                 fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      </g></svg>`,
+    className:'', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-18],
+  });
+}
+
+function circleIcon(color) {
+  return L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+      <circle cx="11" cy="11" r="8" fill="${color}" stroke="white" stroke-width="2.5"/></svg>`,
+    className:'', iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-14],
+  });
+}
+
+function emergIcon() {
+  return L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+      <circle cx="14" cy="14" r="12" fill="#c0102a" stroke="white" stroke-width="2.5"/>
+      <text x="14" y="19" text-anchor="middle" font-size="14" fill="white">!</text></svg>`,
+    className:'', iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-16],
+  });
+}
+
+function entityIcon(e) {
+  if (e.state === 'EMERGENCY' || e.state === 'CRASH_LANDED') return emergIcon();
+  const color = e.source === 'OGN' ? '#a855f7' : '#3b82f6';
+  if (e.state === 'AIRBORNE' || e.state === 'EMERGENCY_CHUTE') return arrowIcon(e.course_deg, color);
+  return circleIcon(color);
+}
+
+function buildPopup(e) {
+  const alt   = e.alt_m   != null ? `${Math.round(e.alt_m)}m` : '—';
+  const spd   = e.speed_kmh != null ? `${Math.round(e.speed_kmh)}km/h` : '—';
+  const vspd  = e.vspeed_ms != null ? `${e.vspeed_ms.toFixed(1)}m/s` : '—';
+  const bat   = e.battery != null ? `🔋${e.battery}%` : '';
+  const ts    = e.ts ? e.ts.slice(11,16) : '';
+  const mapLink = e.lat ? `<a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>` : '';
+  const shareLink = e.share_token ? `<a href="/map/${e.share_token}" target="_blank">Mappa live</a>` : '';
+  return `<div class="map-popup">
+    <strong>${e.nome}</strong>
+    <span class="badge badge-${e.state}" style="margin-left:.4rem">${e.state}</span>
+    <div class="popup-row">📡 ${e.source} · ${e.attivita}</div>
+    <div class="popup-row">⬆ ${alt} · ➡ ${spd} · ↕ ${vspd} ${bat}</div>
+    <div class="popup-row">${ts} ${mapLink} ${shareLink}</div>
+  </div>`;
+}
+
+function filteredEntities() {
+  const attivita  = document.getElementById('filter-attivita').value;
+  const source    = document.getElementById('filter-source').value;
+  const emergOnly = document.getElementById('filter-emergency').checked;
+  return entities.filter(e => {
+    if (attivita && e.attivita !== attivita) return false;
+    if (source   && e.source   !== source)   return false;
+    if (emergOnly && e.state !== 'EMERGENCY' && e.state !== 'CRASH_LANDED') return false;
+    return true;
+  });
+}
+
+function renderSidebar() {
+  const list = document.getElementById('entity-list');
+  const filtered = filteredEntities();
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:1rem;color:#666;font-size:.85rem">Nessuna entità.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(e => `
+    <div class="entity-card ${activeId === e.id ? 'active' : ''}" onclick="selectEntity('${e.id}')">
+      <div class="name">
+        ${e.nome}
+        <span class="badge badge-source-${e.source}">${e.source}</span>
+        <span class="badge badge-${e.state}">${e.state}</span>
+      </div>
+      <div class="meta">
+        ${e.attivita} ·
+        ${e.alt_m != null ? Math.round(e.alt_m)+'m' : '—'} ·
+        ${e.speed_kmh != null ? Math.round(e.speed_kmh)+'km/h' : '—'} ·
+        ${e.ts ? e.ts.slice(11,16) : '—'}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadEmergencies() {
+  const r = await fetch('/api/admin/emergencies');
+  const data = await r.json();
+  const panel = document.getElementById('emerg-panel');
+  const list  = document.getElementById('emerg-list');
+  if (!data.length) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  list.innerHTML = data.map(e => `
+    <div class="emerg-item">
+      <div class="emerg-name">🆘 ${e.nome || ''} ${e.cognome || ''}</div>
+      <div class="emerg-meta">
+        ${e.attivita || '—'} · ${e.trigger} · ${e.ts ? e.ts.slice(0,16) : ''}<br>
+        📞 ${e.telefono || '—'} | 🩸 ${e.gruppo_sanguigno || '—'} | 🌐 ${e.lingua || 'it'}<br>
+        ${e.note_salute ? '🏥 '+e.note_salute+'<br>' : ''}
+        🆘 ${e.emergenza_contatto || '—'} — ${e.emergenza_telefono || '—'}
+        ${e.lat ? `| <a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank" style="color:#f88">📍 Mappa</a>` : ''}
+      </div>
+      <button class="resolve-btn" onclick="resolveEmergency(${e.id})">✓ Risolto</button>
+    </div>
+  `).join('');
+}
+
+async function resolveEmergency(id) {
+  if (!confirm('Segnare come risolta?')) return;
+  await fetch(`/admin/emergency/${id}/resolve`, { method: 'POST', body: new FormData() });
+  loadEmergencies();
+}
+
+async function loadTrack(sessionId, color) {
+  if (!sessionId) return;
+  const key = `sess_${sessionId}`;
+  try {
+    const data = await fetch(`/api/admin/track/${sessionId}`).then(r => r.json());
+    const latlngs = data.map(p => [p.lat, p.lon]);
+    if (tracks[key]) {
+      tracks[key].setLatLngs(latlngs);
+    } else {
+      tracks[key] = L.polyline(latlngs, { color: color || '#3b82f6', weight: 2.5, opacity: .7 }).addTo(map);
+    }
+  } catch(e) {}
+}
+
+async function update() {
+  const r = await fetch('/api/admin/live');
+  if (!r.ok) return;
+  entities = await r.json();
+
+  const incoming = new Set(entities.map(e => e.id));
+  for (const k of Object.keys(markers)) {
+    if (!incoming.has(k)) { markers[k].remove(); delete markers[k]; }
+  }
+
+  const bounds = [];
+  for (const e of entities) {
+    if (e.lat == null) continue;
+    const icon  = entityIcon(e);
+    const popup = buildPopup(e);
+    if (markers[e.id]) {
+      markers[e.id].setLatLng([e.lat, e.lon]).setIcon(icon);
+      markers[e.id].getPopup().setContent(popup);
+    } else {
+      markers[e.id] = L.marker([e.lat, e.lon], { icon }).bindPopup(popup).addTo(map);
+    }
+    bounds.push([e.lat, e.lon]);
+    if (e.source === 'APP' && e.session_id) loadTrack(e.session_id, '#3b82f6');
+  }
+
+  if (bounds.length && !hasFitted) {
+    map.fitBounds(bounds, { padding: [40, 40] });
+    hasFitted = true;
+  }
+
+  renderSidebar();
+  loadEmergencies();
+}
+
+function selectEntity(id) {
+  activeId = id;
+  const e = entities.find(x => x.id === id);
+  if (!e || e.lat == null) return;
+  map.setView([e.lat, e.lon], 14);
+  if (markers[id]) markers[id].openPopup();
+  renderSidebar();
+}
+
+['filter-attivita','filter-source','filter-emergency'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderSidebar);
+});
+
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  const sidebar = document.getElementById('sidebar');
+  const btn     = document.getElementById('sidebar-toggle');
+  sidebar.classList.toggle('collapsed');
+  btn.style.left = sidebar.classList.contains('collapsed') ? '0' : '320px';
+  btn.textContent = sidebar.classList.contains('collapsed') ? '›' : '‹';
+  setTimeout(() => map.invalidateSize(), 260);
+});
+
+window.addEventListener('resize', () => map.invalidateSize());
+
+update();
+setInterval(update, 15000);
+</script>
+</body>
+</html>

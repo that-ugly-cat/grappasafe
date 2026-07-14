@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - GRAPPASAFE_DB=/data/grappasafe.db
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8010:8000"   # esposto solo su localhost, Nginx fa da proxy

@@ -1,0 +1,237 @@
+"""
+Kinematic state machine.
+
+Describes what an entity is physically doing. It holds no emergency logic:
+the state machine describes, the emergency manager decides.
+
+Transitions are confirmed over time (seconds), not per tick. If GPS goes
+silent for longer than cfg.max_gap_s the streak timestamps are cleared,
+since silence means we can't trust the last known condition.
+
+Flight (PARAGLIDER, HANGGLIDER):
+    GROUND -> AIRBORNE -> DESCENDING_FAST -> LANDED
+                       -> LANDED (normal landing)
+
+Ground (CYCLIST, CLIMBER, HIKER, RUNNER, OTHER_ON_GROUND):
+    MOVING <-> STATIONARY
+    IMPACT (transient, one tick, overrides any state)
+"""
+
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.emergency import EmConfig
+
+FLIGHT_ACTIVITIES = {"PARAGLIDER", "HANGGLIDER"}
+GROUND_ACTIVITIES = {"CYCLIST", "CLIMBER", "HIKER", "RUNNER", "OTHER_ON_GROUND"}
+
+
+class FlightState(str, Enum):
+    GROUND          = "GROUND"
+    AIRBORNE        = "AIRBORNE"
+    DESCENDING_FAST = "DESCENDING_FAST"   # fast descent, possible reserve chute
+    LANDED          = "LANDED"
+
+
+class GroundState(str, Enum):
+    MOVING      = "MOVING"
+    STATIONARY  = "STATIONARY"
+    IMPACT      = "IMPACT"     # transient: one tick, then MOVING or STATIONARY
+
+
+@dataclass
+class SessionTracker:
+    session_id:  int
+    user_id:     int
+    attivita:    str
+    state:       str           # may also hold "EMERGENCY", written by app.py not by the SM
+    last_seen:   Optional[datetime] = None
+
+    # Flight streak timestamps: set when a condition first becomes true,
+    # cleared when it breaks or when the transition fires.
+    takeoff_since:    Optional[datetime] = None
+    landing_since:    Optional[datetime] = None
+    descending_since: Optional[datetime] = None
+
+    # Ground streak timestamp.
+    stationary_since: Optional[datetime] = None
+
+    def is_flight(self) -> bool:
+        return self.attivita in FLIGHT_ACTIVITIES
+
+    def is_ground(self) -> bool:
+        return self.attivita in GROUND_ACTIVITIES
+
+
+@dataclass
+class OgnTracker:
+    ogn_id:          str
+    display_name:    str
+    state:           str = FlightState.GROUND
+    last_seen:       Optional[datetime] = None
+    takeoff_since:   Optional[datetime] = None
+    landing_since:   Optional[datetime] = None
+    descending_since: Optional[datetime] = None
+    linked_user_id:  Optional[int] = None
+
+
+def _reset_streaks(tracker) -> None:
+    """Clear all streak timestamps after a GPS gap."""
+    for attr in ("takeoff_since", "landing_since", "descending_since", "stationary_since"):
+        if hasattr(tracker, attr):
+            setattr(tracker, attr, None)
+
+
+def update_sm(tracker: SessionTracker, point: dict, cfg: "EmConfig") -> bool:
+    """Feed a GPS point into the state machine. Returns True if the state changed."""
+    now = _parse_ts(point.get("ts"))
+
+    # Drop the streaks if GPS was silent for too long: a stale condition
+    # should not be allowed to fire a transition.
+    if tracker.last_seen is not None:
+        gap = (now - tracker.last_seen).total_seconds()
+        if gap > cfg.max_gap_s:
+            _reset_streaks(tracker)
+
+    tracker.last_seen = now
+    old_state = tracker.state
+
+    # During an open emergency the SM keeps updating internally, but app.py
+    # keeps the DB state at EMERGENCY.
+    if tracker.is_flight():
+        _update_flight(tracker, point, cfg, now)
+    elif tracker.is_ground():
+        _update_ground(tracker, point, cfg, now)
+
+    return tracker.state != old_state
+
+
+def update_ogn_sm(tracker: OgnTracker, beacon: dict, cfg: "EmConfig") -> bool:
+    """Feed an OGN beacon into the flight SM. Returns True if the state changed."""
+    now = _parse_ts(beacon.get("ts"))
+
+    if tracker.last_seen is not None:
+        gap = (now - tracker.last_seen).total_seconds()
+        if gap > cfg.max_gap_s:
+            _reset_streaks(tracker)
+
+    tracker.last_seen = now
+    old_state = tracker.state
+
+    _update_flight_generic(
+        state=tracker.state,
+        set_state=lambda s: setattr(tracker, "state", s),
+        get_since=lambda k: getattr(tracker, k),
+        set_since=lambda k, v: setattr(tracker, k, v),
+        now=now,
+        alt_m=beacon.get("alt_m") or 0.0,
+        speed_kmh=beacon.get("speed_kmh") or 0.0,
+        vspeed_ms=beacon.get("vspeed_ms") or 0.0,
+        cfg=cfg,
+    )
+    return tracker.state != old_state
+
+
+def _update_flight(tracker: SessionTracker, point: dict, cfg: "EmConfig", now: datetime):
+    _update_flight_generic(
+        state=tracker.state,
+        set_state=lambda s: setattr(tracker, "state", s),
+        get_since=lambda k: getattr(tracker, k),
+        set_since=lambda k, v: setattr(tracker, k, v),
+        now=now,
+        alt_m=point.get("alt_m") or 0.0,
+        speed_kmh=point.get("speed_kmh") or 0.0,
+        vspeed_ms=point.get("vspeed_ms") or 0.0,
+        cfg=cfg,
+    )
+
+
+def _update_flight_generic(state, set_state, get_since, set_since, now,
+                            alt_m, speed_kmh, vspeed_ms, cfg):
+    """Flight logic shared by SessionTracker and OgnTracker."""
+
+    if state == FlightState.GROUND:
+        if speed_kmh >= cfg.takeoff_speed_kmh or alt_m > cfg.takeoff_alt_m:
+            since = get_since("takeoff_since")
+            if since is None:
+                set_since("takeoff_since", now)
+            elif (now - since).total_seconds() >= cfg.takeoff_confirm_s:
+                set_state(FlightState.AIRBORNE)
+                set_since("takeoff_since", None)
+        else:
+            set_since("takeoff_since", None)
+        return
+
+    if state == FlightState.AIRBORNE:
+        # Fast descent check (reserve chute).
+        if vspeed_ms <= cfg.descending_vspeed_ms:
+            since = get_since("descending_since")
+            if since is None:
+                set_since("descending_since", now)
+            elif (now - since).total_seconds() >= cfg.descending_confirm_s:
+                set_state(FlightState.DESCENDING_FAST)
+                set_since("descending_since", None)
+                set_since("landing_since", None)   # invalidate any landing streak
+                return
+        else:
+            set_since("descending_since", None)
+
+        # Normal landing check.
+        if speed_kmh <= cfg.landing_speed_kmh and alt_m <= cfg.landing_alt_m:
+            since = get_since("landing_since")
+            if since is None:
+                set_since("landing_since", now)
+            elif (now - since).total_seconds() >= cfg.landing_confirm_s:
+                set_state(FlightState.LANDED)
+                set_since("landing_since", None)
+        else:
+            set_since("landing_since", None)
+        return
+
+    if state == FlightState.DESCENDING_FAST:
+        # Wait for landing.
+        if speed_kmh <= cfg.landing_speed_kmh and alt_m <= cfg.landing_alt_m:
+            since = get_since("landing_since")
+            if since is None:
+                set_since("landing_since", now)
+            elif (now - since).total_seconds() >= cfg.landing_confirm_s:
+                set_state(FlightState.LANDED)
+                set_since("landing_since", None)
+        else:
+            set_since("landing_since", None)
+        return
+
+    # LANDED stays LANDED; the session is closed manually.
+
+
+def _update_ground(tracker: SessionTracker, point: dict, cfg: "EmConfig", now: datetime):
+    impact    = bool(point.get("impact_detected", False))
+    speed_kmh = point.get("speed_kmh") or 0.0
+
+    # IMPACT is transient: it overrides everything for one tick.
+    if impact:
+        tracker.state = GroundState.IMPACT
+        tracker.stationary_since = None
+        return
+
+    if speed_kmh >= cfg.moving_speed_kmh:
+        tracker.state = GroundState.MOVING
+        tracker.stationary_since = None
+    else:
+        if tracker.stationary_since is None:
+            tracker.stationary_since = now
+        elif (now - tracker.stationary_since).total_seconds() >= cfg.stationary_confirm_s:
+            tracker.state = GroundState.STATIONARY
+        # otherwise keep the current state until confirmed
+
+
+def _parse_ts(ts) -> datetime:
+    from datetime import timezone
+    if ts is None:
+        return datetime.now(timezone.utc)
+    if isinstance(ts, datetime):
+        return ts
+    return datetime.fromisoformat(ts)

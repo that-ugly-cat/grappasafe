@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# SRTM elevation tiles (fetched with fetch_tiles.sh, ~52 MB, not versioned)
+tiles/*.hgt
+
+# Runtime data volume
+data/
+
+# OS
+.DS_Store
