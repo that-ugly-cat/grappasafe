@@ -19,6 +19,16 @@
   .guide-card h3 { font-size: 1rem; color: #1a1a2e; margin-bottom: .3rem; }
   .guide-card .who { color: #888; font-size: .82rem; margin-bottom: .7rem; }
   .guide-card ul { margin: 0; padding-left: 1.1rem; color: #555; font-size: .9rem; line-height: 1.6; }
+  .guide-more { margin-top: 1.2rem; }
+  .guide-more > summary { cursor: pointer; color: #1a6a8a; font-size: .92rem; font-weight: 500; list-style: revert; padding: .3rem 0; }
+  .guide-more > summary:hover { text-decoration: underline; }
+  .ext { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: .8rem; }
+  .ext h3 { font-size: 1.05rem; color: #1a1a2e; margin: 1.4rem 0 .2rem; }
+  .ext h3:first-child { margin-top: 0; }
+  .ext .who { color: #888; font-size: .82rem; margin-bottom: .6rem; }
+  .ext p { color: #444; font-size: .92rem; line-height: 1.6; margin: .4rem 0; }
+  .ext ul { margin: .3rem 0; padding-left: 1.2rem; color: #555; font-size: .9rem; line-height: 1.6; }
+  .ext hr { border: none; border-top: 1px solid #eee; margin: 1.4rem 0 0; }
   footer { margin: 3rem 0 1rem; text-align: center; color: #999; font-size: .88rem; }
   footer a { color: #1a6a8a; text-decoration: none; }
   footer a:hover { text-decoration: underline; }
@@ -36,7 +46,7 @@
   <div class="top">
     <div>
       <p class="lead">
-        GrappaSafe segue piloti e sportivi in un raggio di 19&nbsp;km attorno al Grappa e allerta
+        GrappaSafe segue piloti e sportivi sul Massiccio del Grappa e allerta
         i soccorsi quando qualcosa non va. Fonde due sorgenti — l'app mobile (GPS e accelerometro)
         e il feed OGN/FLARM in tempo reale — e riconosce le emergenze: SOS manuale, atterraggio
         col paracadute d'emergenza, impatto seguito da immobilità. Quando serve, avvisa gli
@@ -89,6 +99,42 @@
         </ul>
       </div>
     </div>
+
+    <details class="guide-more">
+      <summary>Leggi la guida completa</summary>
+      <div class="ext">
+        <h3>Utente</h3>
+        <div class="who">Piloti e sportivi outdoor</div>
+        <p>Sei un pilota o uno sportivo che si muove sul Grappa. L'app ti segue durante l'attività e, se qualcosa va storto, avvisa chi può aiutarti con la tua posizione e le tue informazioni.</p>
+        <ul>
+          <li><strong>Profilo e dati medici.</strong> Compila nome, telefono, contatto d'emergenza, gruppo sanguigno e note salute (allergie, farmaci, patologie). Sono esattamente i dati che vedono i soccorritori: tienili aggiornati.</li>
+          <li><strong>Device OGN/FLARM.</strong> Se hai un tracker a bordo, registralo in «I miei device» con il suo ID. Così il sistema ti riconosce anche quando non stai usando l'app, dal solo feed OGN, e associa le tue info al mezzo in volo.</li>
+          <li><strong>Durante l'uscita.</strong> Scegli l'attività (parapendio, deltaplano, aliante, o attività terrestri) e avvia il tracking. Il telefono manda posizione, quota e accelerazione.</li>
+          <li><strong>Emergenze.</strong> Puoi lanciare un <em>SOS manuale</em>. Alcune emergenze scattano da sole: atterraggio col paracadute d'emergenza, oppure un impatto seguito da immobilità. Per queste il telefono ti chiede conferma: «sto bene» annulla, «chiama soccorsi» allerta subito; se non rispondi entro il tempo previsto, il sistema allerta comunque.</li>
+          <li><strong>Mappa condivisibile.</strong> Puoi dare a famiglia e amici un link per seguire la tua posizione in tempo reale, senza login.</li>
+        </ul>
+        <hr>
+        <h3>Amministratore</h3>
+        <div class="who">Gestione e configurazione</div>
+        <p>Presidi il sistema e decidi come si comporta. Hai accesso completo a monitoraggio, utenti e regole.</p>
+        <ul>
+          <li><strong>Dashboard live.</strong> Mappa di tutte le entità — app e OGN/FLARM — con filtri per attività e pannello emergenze. Cliccando un mezzo vedi la sua traccia e il barogramma (quota sopra il suolo e sul livello del mare). I mezzi fermi da troppo tempo spariscono; le emergenze restano sempre visibili.</li>
+          <li><strong>Utenti e ruoli.</strong> Crei e modifichi gli utenti e assegni i ruoli (utente, observer, amministratore).</li>
+          <li><strong>Macchina degli stati.</strong> Le soglie che definiscono cosa sta facendo un mezzo: decollo, atterraggio, discesa rapida, movimento/fermo, impatto (per attività), più i parametri di sistema (finestra «live», conservazione delle tracce, gap tra due voli OGN).</li>
+          <li><strong>Macchina delle emergenze.</strong> Le regole che trasformano gli stati in un'emergenza: ognuna si accende/spegne, si limita a certe attività e si imposta come immediata o con conferma dal telefono.</li>
+          <li><strong>Emergenze.</strong> Recap storico, scheda dettagliata per ogni emergenza con mappa e dati, risoluzione con nota obbligatoria.</li>
+        </ul>
+        <hr>
+        <h3>Observer</h3>
+        <div class="who">Monitoraggio in sola lettura</div>
+        <p>Un ruolo pensato per chi presidia senza dover configurare nulla — un referente in un rifugio, un coordinatore di zona, un punto di riferimento durante una manifestazione.</p>
+        <ul>
+          <li><strong>Vede.</strong> La dashboard live e il recap delle emergenze; apre i profili per contatti e dati medici, utili quando serve coordinare un intervento.</li>
+          <li><strong>Fa.</strong> Può risolvere le emergenze aggiungendo una nota, così chi coordina chiude l'evento a intervento concluso.</li>
+          <li><strong>Non fa.</strong> Non modifica utenti e non cambia soglie o regole: è un accesso di sola osservazione.</li>
+        </ul>
+      </div>
+    </details>
   </div>
 
   <footer>
