@@ -4,9 +4,11 @@
   <span style="color:#555">|</span>
   <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
   <a href="/admin/emergencies" class="{{ 'active' if active == 'emergencies' else '' }}">Emergenze</a>
+  {% if user.role == 'admin' %}
   <a href="/admin/users" class="{{ 'active' if active == 'users' else '' }}">Utenti</a>
   <a href="/admin/states-settings" class="{{ 'active' if active == 'states' else '' }}">Stati</a>
   <a href="/admin/emergency-settings" class="{{ 'active' if active == 'rules' else '' }}">Regole</a>
+  {% endif %}
   <div class="spacer"></div>
   <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
   <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>

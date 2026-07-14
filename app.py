@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
-from auth import hash_password, verify_password, get_current_user, require_auth, require_admin
+from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
 from core.config import SECRET_KEY
 from core.notify import notify_emergency
 from core.ogn import ogn_worker
@@ -123,8 +123,8 @@ templates.env.filters["localtime"] = _localtime
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _home_for(user) -> str:
-    """Post-login landing page by role: admin -> dashboard, user -> /me."""
-    return "/dashboard" if user.get("role") == "admin" else "/me"
+    """Post-login landing page: admins and observers -> dashboard, users -> /me."""
+    return "/dashboard" if user.get("role") in ("admin", "observer") else "/me"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -172,7 +172,7 @@ async def logout(request: Request):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    user, redir = require_admin(request)
+    user, redir = require_viewer(request)
     if redir:
         return redir
     return templates.TemplateResponse(request, "dashboard.html", {"user": user})
@@ -672,7 +672,7 @@ async def admin_users(request: Request):
 @app.get("/admin/user/{uid}", response_class=HTMLResponse)
 async def admin_user_profile(request: Request, uid: int):
     """Full profile of one user, with their devices and emergency history."""
-    user, redir = require_admin(request)
+    user, redir = require_viewer(request)
     if redir:
         return redir
     subject = db.get_user(uid)
@@ -885,7 +885,7 @@ async def api_delete_user(request: Request, uid: int):
 @app.get("/api/admin/live")
 async def admin_live(request: Request):
     """All active users plus OGN traffic in the area. Used by the map poller."""
-    _, redir = require_admin(request)
+    _, redir = require_viewer(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
@@ -1010,7 +1010,7 @@ def _with_agl(track):
 @app.get("/api/admin/track/{session_id}")
 async def admin_track(request: Request, session_id: int):
     """Track of an app session for the admin map, with AGL for the barogram."""
-    _, redir = require_admin(request)
+    _, redir = require_viewer(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
     return JSONResponse(_with_agl(db.get_track(session_id, limit=300)))
@@ -1019,7 +1019,7 @@ async def admin_track(request: Request, session_id: int):
 @app.get("/api/admin/ogn-track/{ogn_id}")
 async def admin_ogn_track(request: Request, ogn_id: str):
     """Track of an OGN device (current flight only), with AGL for the barogram."""
-    _, redir = require_admin(request)
+    _, redir = require_viewer(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
     cfg = _get_config()
@@ -1029,7 +1029,7 @@ async def admin_ogn_track(request: Request, ogn_id: str):
 @app.get("/admin/emergencies", response_class=HTMLResponse)
 async def admin_emergencies_page(request: Request):
     """Recap of every emergency, open and resolved."""
-    user, redir = require_admin(request)
+    user, redir = require_viewer(request)
     if redir:
         return redir
     return templates.TemplateResponse(request, "emergencies.html", {
@@ -1041,7 +1041,7 @@ async def admin_emergencies_page(request: Request):
 @app.get("/api/admin/emergencies")
 async def admin_emergencies_api(request: Request, resolved: str = "false"):
     """List of emergencies filtered by resolution state."""
-    _, redir = require_admin(request)
+    _, redir = require_viewer(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
     if resolved == "true":

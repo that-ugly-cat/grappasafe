@@ -91,7 +91,7 @@
         </td>
         <td>{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
         <td class="note-cell">{{ e.note or '—' }}</td>
-        <td>{% if not e.resolved_at %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
+        <td>{% if not e.resolved_at and user.role == 'admin' %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -171,6 +171,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+const IS_ADMIN = {{ (user.role == 'admin') | tojson }};
 const map = L.map('admin-map', { zoomControl: true }).setView([45.8526, 11.7713], 12);
 
 const osmLayer  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -344,7 +345,7 @@ async function loadEmergencies() {
         🆘 ${e.emergenza_contatto || '—'} — ${e.emergenza_telefono || '—'}
         ${e.lat ? `| <a href="https://maps.google.com/?q=${e.lat},${e.lon}" target="_blank" style="color:#f88">📍 Mappa</a>` : ''}
       </div>
-      <button class="resolve-btn" onclick="resolveEmergency(${e.id})">✓ Risolto</button>
+      ${IS_ADMIN ? `<button class="resolve-btn" onclick="resolveEmergency(${e.id})">✓ Risolto</button>` : ''}
     </div>
   `).join('');
 }

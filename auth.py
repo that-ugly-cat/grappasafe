@@ -35,3 +35,15 @@ def require_admin(request: Request):
         from fastapi.responses import JSONResponse
         return None, JSONResponse({"error": "forbidden"}, status_code=403)
     return user, None
+
+
+def require_viewer(request: Request):
+    """Read access to the monitoring pages: admins and observers."""
+    user = get_current_user(request)
+    if not user:
+        from fastapi.responses import RedirectResponse
+        return None, RedirectResponse("/", status_code=303)
+    if user["role"] not in ("admin", "observer"):
+        from fastapi.responses import JSONResponse
+        return None, JSONResponse({"error": "forbidden"}, status_code=403)
+    return user, None
