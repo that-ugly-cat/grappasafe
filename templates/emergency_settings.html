@@ -46,6 +46,17 @@
     .field label { flex: 1; color: #aaa; font-size: .88rem; }
     .field label span { display: block; font-size: .75rem; color: #555; font-family: monospace; }
     .field input { width: 110px; background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .45rem .7rem; font-size: .9rem; text-align: right; }
+    .btn-info { width: 20px; height: 20px; border-radius: 50%; background: #2a2a4a; border: 1px solid #4a4a6e; color: #888; font-size: .7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; line-height: 1; }
+    .btn-info:hover { background: #3a3a6a; border-color: #9999cc; color: #ccc; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #1e1e38; border: 1px solid #3e3e6e; border-radius: 12px; padding: 1.4rem 1.6rem; max-width: 420px; width: 90%; position: relative; }
+    .modal-close { position: absolute; top: .8rem; right: .9rem; background: none; border: none; color: #666; font-size: 1.1rem; cursor: pointer; }
+    .modal-close:hover { color: #ccc; }
+    .modal-key { font-size: .72rem; color: #555; font-family: monospace; background: #12122a; border: 1px solid #2e2e4e; display: inline-block; padding: .1rem .45rem; border-radius: 4px; margin-bottom: .65rem; }
+    .modal-title { font-size: 1rem; font-weight: 700; color: #ddd; margin-bottom: .6rem; }
+    .modal-body { font-size: .88rem; color: #aaa; line-height: 1.55; }
+    .modal-body strong { color: #ccc; }
     .flash { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1.2rem; font-size: .9rem; display: none; }
     .flash-success { background: #1a3a1a; color: #86efac; border: 1px solid #2a5a2a; }
     .flash-error { background: #3a1a1a; color: #fca5a5; border: 1px solid #5a2a2a; }
@@ -108,9 +119,19 @@
     {% for g in globals %}
     <div class="field">
       <label>{{ g.descrizione }}<span>{{ g.key }}</span></label>
+      <button class="btn-info" type="button" onclick="openInfo('{{ g.key }}')" title="Informazioni">?</button>
       <input type="number" step="0.1" data-key="{{ g.key }}" value="{{ g.value }}">
     </div>
     {% endfor %}
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeInfoOnOverlay(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeInfo()">✕</button>
+    <div class="modal-key" id="modal-key"></div>
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
 
@@ -120,6 +141,38 @@
 </div>
 
 <script>
+const INFO = {
+  ack_cooldown_s: {
+    title: "Pausa dopo «sto bene»",
+    body: `Quando l'utente preme "sto bene" (o annulla un pending), le regole terrestri vengono <strong>sospese per questo tempo</strong>.
+<br><br>
+Evita di ri-allarmare durante una sosta intenzionale: ti fermi a mangiare, il sistema chiede, dici "sto bene", e non deve richiederlo di nuovo tra due minuti mentre sei ancora fermo. Dopo la finestra, torna a sorvegliare.
+<br><br>
+Default: 1800s = 30 minuti.`,
+  },
+  pending_timeout_s: {
+    title: "Finestra di risposta dal telefono",
+    body: `Vale per le regole in modalità <strong>pending</strong>. Quando scattano, il server <em>non</em> allerta subito i soccorsi: manda un allarme al telefono e dà questo tempo per rispondere.
+<br><br>
+• <strong>"Sto bene"</strong> → falso allarme, pending annullato.<br>
+• <strong>"Chiama soccorsi"</strong> → emergenza aperta subito.<br>
+• <strong>Nessuna risposta</strong> → allo scadere il server <strong>auto-conferma</strong> e allerta comunque (caso in cui sei incosciente).
+<br><br>
+Le regole <strong>immediate</strong> saltano tutto questo. Default: 180s = 3 minuti.`,
+  },
+};
+
+function openInfo(key) {
+  const info = INFO[key] || { title: key, body: "Nessuna descrizione." };
+  document.getElementById('modal-key').textContent = key;
+  document.getElementById('modal-title').textContent = info.title;
+  document.getElementById('modal-body').innerHTML = info.body;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeInfo() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeInfoOnOverlay(e) { if (e.target === document.getElementById('modal-overlay')) closeInfo(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInfo(); });
+
 function flash(msg, type) {
   const area = document.getElementById('flash-area');
   area.innerHTML = `<div class="flash flash-${type}" style="display:block">${msg}</div>`;

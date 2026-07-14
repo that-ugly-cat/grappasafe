@@ -95,9 +95,13 @@ function setFilter(f, btn) {
 }
 
 async function resolve(id) {
-  if (!confirm('Segnare questa emergenza come risolta?')) return;
-  await fetch(`/admin/emergency/${id}/resolve`, { method: 'POST', body: new FormData() });
-  location.reload();
+  const note = prompt('Nota di risoluzione (obbligatoria): cosa è successo, com\'è finita?');
+  if (note === null) return;                 // annullato
+  if (!note.trim()) { alert('La nota di risoluzione è obbligatoria.'); return; }
+  const fd = new FormData(); fd.append('note', note.trim());
+  const r = await fetch(`/admin/emergency/${id}/resolve`, { method: 'POST', body: fd });
+  if (r.ok) location.reload();
+  else alert('Errore: la risoluzione non è andata a buon fine.');
 }
 </script>
 </body>

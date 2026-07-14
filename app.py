@@ -963,8 +963,10 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
     user, redir = require_admin(request)
     if redir:
         return redir
-    db.resolve_emergency(eid, resolved_by=user["id"], note=note)
-    return RedirectResponse("/admin", status_code=303)
+    if not note.strip():
+        raise HTTPException(400, "La nota di risoluzione è obbligatoria")
+    db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
+    return RedirectResponse("/admin/emergencies", status_code=303)
 
 
 @app.post("/admin/user/create")
