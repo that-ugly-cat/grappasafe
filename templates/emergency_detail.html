@@ -30,6 +30,12 @@
     .row { display: flex; padding: .35rem 0; font-size: .92rem; }
     .row .k { color: #777; width: 200px; flex-shrink: 0; }
     .row .v { color: #eee; }
+    @media (max-width: 600px) {
+      .content { padding: 0 1rem 3rem; }
+      .row { flex-direction: column; gap: 0; }
+      .row .k { width: auto; font-size: .8rem; }
+      #em-map { height: 200px; }
+    }
     .muted { color: #666; }
     .trig { font-family: monospace; color: #cbd; }
     a.maps { color: #6ab0ff; text-decoration: none; }

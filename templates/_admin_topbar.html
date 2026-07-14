@@ -1,4 +1,14 @@
 {% include "_contours.html" %}
+<style>
+@media (max-width: 768px) {
+  .topbar { gap: .5rem; padding: .5rem .7rem; overflow-x: auto; }
+  .topbar strong { font-size: .95rem; }
+  .topbar a, .topbar button { font-size: .82rem; white-space: nowrap; }
+  .topbar .spacer { display: none; }
+  .topbar .tb-user { display: none; }
+  .topbar img { height: 26px !important; }
+}
+</style>
 <div class="topbar">
   <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
   <strong>GrappaSafe</strong>
@@ -11,6 +21,6 @@
   <a href="/admin/emergency-settings" class="{{ 'active' if active == 'rules' else '' }}">Regole</a>
   {% endif %}
   <div class="spacer"></div>
-  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
+  <span class="tb-user" style="color:#888;font-size:.85rem">{{ user.username }}</span>
   <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>
 </div>

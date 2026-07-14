@@ -109,6 +109,13 @@
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: #1a1a2e; }
     ::-webkit-scrollbar-thumb { background: #3a3a6e; border-radius: 3px; }
+
+    /* ── Mobile: sidebar come overlay, non schiaccia la mappa ── */
+    @media (max-width: 768px) {
+      .sidebar { position: absolute; top: 0; bottom: 0; left: 0; z-index: 950;
+                 width: 300px; max-width: 85vw; box-shadow: 2px 0 16px rgba(0,0,0,.55); }
+      .baro-panel { height: 150px; }
+    }
   </style>
 </head>
 <body>
@@ -530,6 +537,13 @@ document.getElementById('sidebar-toggle').addEventListener('click', () => {
 });
 
 window.addEventListener('resize', () => map.invalidateSize());
+
+// On phones, start with the sidebar collapsed so the map is usable.
+if (window.innerWidth <= 768) {
+  document.getElementById('sidebar').classList.add('collapsed');
+  const tbtn = document.getElementById('sidebar-toggle');
+  tbtn.style.left = '0'; tbtn.textContent = '›';
+}
 
 update();
 setInterval(update, 15000);

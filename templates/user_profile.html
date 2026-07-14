@@ -26,6 +26,12 @@
     .row { display: flex; padding: .35rem 0; font-size: .92rem; }
     .row .k { color: #777; width: 210px; flex-shrink: 0; }
     .row .v { color: #eee; }
+    @media (max-width: 600px) {
+      .content { padding: 0 1rem 3rem; }
+      .row { flex-direction: column; gap: 0; }
+      .row .k { width: auto; font-size: .8rem; }
+      .row .v { word-break: break-word; }
+    }
     .muted { color: #666; }
     .dev { display: flex; align-items: center; gap: .7rem; padding: .5rem 0; border-bottom: 1px solid #23233e; font-size: .9rem; }
     .dev:last-child { border-bottom: none; }
