@@ -726,6 +726,28 @@ async def api_delete_user(request: Request, uid: int):
 
 # ── Admin API used by the dashboard JS ────────────────────────────────────────
 
+# OGN/FLARM aircraft type codes -> label. Lets us tell paragliders and hang
+# gliders apart from powered traffic that also shows up on the feed.
+_OGN_KIND = {
+    1:  "GLIDER",
+    2:  "AIRCRAFT",     # tow plane
+    3:  "HELICOPTER",
+    4:  "SKYDIVER",
+    5:  "AIRCRAFT",     # drop plane
+    6:  "HANGGLIDER",
+    7:  "PARAGLIDER",
+    8:  "AIRCRAFT",     # powered
+    9:  "AIRCRAFT",     # jet
+    11: "BALLOON",
+    12: "AIRSHIP",
+    13: "UAV",
+}
+
+
+def _ogn_kind(aircraft_type) -> str:
+    return _OGN_KIND.get(aircraft_type, "UNKNOWN")
+
+
 @app.get("/api/admin/live")
 async def admin_live(request: Request):
     """All active users plus OGN traffic in the area. Used by the map poller."""
@@ -775,7 +797,7 @@ async def admin_live(request: Request):
             "source":   "OGN",
             "nome":     ogn_nome,
             "linked":   bool(o.get("owner_user_id")),
-            "attivita": "PARAGLIDER",   # OGN defaults to flight
+            "attivita": _ogn_kind(o.get("aircraft_type")),
             "state":    o["state"],
             "lat":      olat,
             "lon":      olon,

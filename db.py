@@ -74,6 +74,7 @@ def init_db():
             speed_kmh       REAL,
             vspeed_ms       REAL,
             course_deg      REAL,
+            aircraft_type   INTEGER,
             linked_user_id  INTEGER REFERENCES users(id),
             state           TEXT NOT NULL DEFAULT 'UNKNOWN'
         );
@@ -438,12 +439,14 @@ def write_ogn_beacon(ogn_id, display_name, ts, lat, lon, **kwargs):
     con = _conn()
     con.execute("""
         INSERT INTO ogn_beacons
-            (ogn_id, display_name, ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg)
-        VALUES (?,?,?,?,?,?,?,?,?)
+            (ogn_id, display_name, ts, lat, lon, alt_m, speed_kmh, vspeed_ms,
+             course_deg, aircraft_type)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
     """, (
         ogn_id, display_name, ts, lat, lon,
         kwargs.get("alt_m"), kwargs.get("speed_kmh"),
         kwargs.get("vspeed_ms"), kwargs.get("course_deg"),
+        kwargs.get("aircraft_type"),
     ))
     beacon_id = con.execute("SELECT last_insert_rowid()").fetchone()[0]
     con.commit()

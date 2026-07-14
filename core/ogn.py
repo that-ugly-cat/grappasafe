@@ -199,13 +199,15 @@ def ogn_worker(stop_flag) -> None:
             alt_m        = _bget(beacon, "altitude")
             speed_kmh    = _bget(beacon, "ground_speed")
             vspeed_ms    = _bget(beacon, "climb_rate")
-            course_deg   = _bget(beacon, "track")
-            ts           = datetime.now(timezone.utc).isoformat()
+            course_deg    = _bget(beacon, "track")
+            aircraft_type = _bget(beacon, "aircraft_type")
+            ts            = datetime.now(timezone.utc).isoformat()
 
             beacon_id = _db.write_ogn_beacon(
                 ogn_id=ogn_id, display_name=display_name, ts=ts,
                 lat=lat, lon=lon, alt_m=alt_m,
                 speed_kmh=speed_kmh, vspeed_ms=vspeed_ms, course_deg=course_deg,
+                aircraft_type=aircraft_type,
             )
 
             beacon_dict = dict(ts=ts, lat=lat, lon=lon, alt_m=alt_m,
