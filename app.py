@@ -933,6 +933,18 @@ async def admin_track(request: Request, session_id: int):
     return JSONResponse(track)
 
 
+@app.get("/admin/emergencies", response_class=HTMLResponse)
+async def admin_emergencies_page(request: Request):
+    """Recap of every emergency, open and resolved."""
+    user, redir = require_admin(request)
+    if redir:
+        return redir
+    return templates.TemplateResponse(request, "emergencies.html", {
+        "user": user,
+        "emergencies": db.get_all_emergencies(),
+    })
+
+
 @app.get("/api/admin/emergencies")
 async def admin_emergencies_api(request: Request, resolved: str = "false"):
     """List of emergencies filtered by resolution state."""

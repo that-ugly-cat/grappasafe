@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergenze — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
+    .content { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
+    .subtitle { color: #888; font-size: .9rem; margin-bottom: 1.4rem; }
+    .filters { display: flex; gap: .5rem; margin-bottom: 1.2rem; }
+    .filters button { background: #1e1e38; color: #aaa; border: 1px solid #2e2e4e; border-radius: 6px; padding: .4rem 1rem; font-size: .85rem; cursor: pointer; }
+    .filters button.on { background: #2a2a4e; color: #fff; border-color: #4a4a7e; }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th { text-align: left; color: #666; font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; padding: .5rem .6rem; border-bottom: 1px solid #2e2e4e; }
+    td { padding: .6rem .6rem; border-bottom: 1px solid #23233e; vertical-align: top; }
+    tr.resolved { opacity: .55; }
+    .who { font-weight: 600; color: #eee; }
+    .meta { color: #777; font-size: .8rem; margin-top: .15rem; }
+    .badge { font-size: .72rem; padding: .12rem .5rem; border-radius: 5px; white-space: nowrap; }
+    .b-open { background: #3a1a1f; color: #ff9a9a; }
+    .b-res  { background: #1a3a24; color: #86efac; }
+    .trig { font-family: monospace; font-size: .78rem; color: #cbd; }
+    a.maps { color: #6ab0ff; text-decoration: none; }
+    a.maps:hover { text-decoration: underline; }
+    .btn-res { background: #1a6a3a; color: #fff; border: none; border-radius: 5px; padding: .3rem .7rem; font-size: .8rem; cursor: pointer; }
+    .btn-res:hover { background: #248a4a; }
+    .empty { color: #666; padding: 2rem; text-align: center; }
+  </style>
+</head>
+<body>
+
+{% set active = "emergencies" %}{% include "_admin_topbar.html" %}
+
+<div class="content">
+  <h2>Emergenze</h2>
+  <p class="subtitle">Storico di tutte le emergenze, aperte e risolte. Le più recenti in alto.</p>
+
+  <div class="filters">
+    <button class="on" data-f="all" onclick="setFilter('all', this)">Tutte</button>
+    <button data-f="open" onclick="setFilter('open', this)">Aperte</button>
+    <button data-f="resolved" onclick="setFilter('resolved', this)">Risolte</button>
+  </div>
+
+  {% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute', 'AUTO_IMPACT': 'Impatto', 'AUTO_IMMOBILE': 'Immobilità'} %}
+
+  <table>
+    <thead>
+      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Contatti</th><th></th></tr>
+    </thead>
+    <tbody id="rows">
+      {% for e in emergencies %}
+      <tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
+        <td>{{ e.ts[:16] if e.ts else '—' }}</td>
+        <td>
+          <div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div>
+          {% if e.lat %}<div class="meta"><a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 mappa</a></div>{% endif %}
+        </td>
+        <td>{{ e.attivita or '—' }}</td>
+        <td><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
+        <td>
+          {% if e.resolved_at %}
+            <span class="badge b-res">Risolta</span>
+            <div class="meta">{{ e.resolved_at[:16] }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
+          {% else %}
+            <span class="badge b-open">Aperta</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if e.telefono %}📞 {{ e.telefono }}<br>{% endif %}
+          {% if e.gruppo_sanguigno %}<span class="meta">🩸 {{ e.gruppo_sanguigno }}</span>{% endif %}
+        </td>
+        <td>{% if not e.resolved_at %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not emergencies %}<div class="empty">Nessuna emergenza registrata.</div>{% endif %}
+</div>
+
+<script>
+function setFilter(f, btn) {
+  document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('on', b === btn));
+  document.querySelectorAll('#rows tr').forEach(tr => {
+    tr.style.display = (f === 'all' || tr.dataset.status === f) ? '' : 'none';
+  });
+}
+
+async function resolve(id) {
+  if (!confirm('Segnare questa emergenza come risolta?')) return;
+  await fetch(`/admin/emergency/${id}/resolve`, { method: 'POST', body: new FormData() });
+  location.reload();
+}
+</script>
+</body>
+</html>

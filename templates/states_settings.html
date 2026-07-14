@@ -51,18 +51,7 @@
 </head>
 <body>
 
-<div class="topbar">
-  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
-  <strong>🏔 GrappaSafe</strong>
-  <span style="color:#555">|</span>
-  <a href="/dashboard">Dashboard</a>
-  <a href="/admin/users">Utenti</a>
-  <a href="/admin/states-settings" class="active">Stati</a>
-  <a href="/admin/emergency-settings">Emergenze</a>
-  <div class="spacer"></div>
-  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
-  <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>
-</div>
+{% set active = "states" %}{% include "_admin_topbar.html" %}
 
 <div class="content">
   <h2>Macchina degli stati</h2>

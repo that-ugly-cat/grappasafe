@@ -16,6 +16,7 @@
     .topbar strong { font-size: 1.1rem; }
     .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
     .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
     .topbar .spacer { flex: 1; }
 
     .content { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
@@ -77,19 +78,7 @@
 </head>
 <body>
 
-<div class="topbar">
-  <img src="/static/logo-consorzio.png" alt="Vivere il Grappa" style="height:30px;background:#fff;border-radius:5px;padding:2px 5px;margin-right:.2rem">
-  <strong>🏔 GrappaSafe</strong>
-  <span style="color:#555">|</span>
-  <a href="/dashboard">Dashboard</a>
-  <a href="/admin/states-settings">Stati</a>
-  <a href="/admin/emergency-settings">Emergenze</a>
-  <div class="spacer"></div>
-  <span style="color:#888;font-size:.85rem">{{ user.username }}</span>
-  <form method="post" action="/logout" style="display:inline">
-    <button type="submit">Esci</button>
-  </form>
-</div>
+{% set active = "users" %}{% include "_admin_topbar.html" %}
 
 <div class="content">
   <h2>Gestione utenti</h2>
