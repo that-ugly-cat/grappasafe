@@ -162,6 +162,48 @@ async def api_login(request: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/register")
+async def api_register(request: Request):
+    """
+    Public self-registration for the mobile app. Creates a plain 'user'
+    account and logs it in. The role is forced server-side, never taken
+    from the request. Emergency fields are optional but encouraged.
+    """
+    body = await request.json()
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    nome     = body.get("nome", "").strip()
+    cognome  = body.get("cognome", "").strip()
+
+    if not username or not password or not nome or not cognome:
+        return JSONResponse(
+            {"ok": False, "error": "Username, password, nome e cognome sono obbligatori"},
+            status_code=400,
+        )
+    if len(password) < 6:
+        return JSONResponse(
+            {"ok": False, "error": "La password deve avere almeno 6 caratteri"},
+            status_code=400,
+        )
+    if db.get_user_by_username(username):
+        return JSONResponse(
+            {"ok": False, "error": "Username già esistente"},
+            status_code=409,
+        )
+
+    uid = db.create_user(
+        username, hash_password(password), nome, cognome,
+        role="user",  # forced: public registration never grants elevated roles
+        telefono=body.get("telefono") or None,
+        gruppo_sanguigno=body.get("gruppo_sanguigno") or None,
+        emergenza_contatto=body.get("emergenza_contatto") or None,
+        emergenza_telefono=body.get("emergenza_telefono") or None,
+        lingua=body.get("lingua", "it"),
+    )
+    request.session["user"] = {"id": uid}
+    return JSONResponse({"ok": True, "id": uid})
+
+
 @app.post("/logout")
 async def logout(request: Request):
     request.session.clear()
