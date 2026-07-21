@@ -549,13 +549,20 @@ async def gps_point(request: Request):
             except Exception:
                 pass
 
+    # The server decides the impact from the peak accel vs the per-activity
+    # threshold; store that decision (not the app's placeholder false) so it's
+    # visible in exports and reflects what the emergency machine actually saw.
+    _accel = body.get("accel_magnitude")
+    _thr   = impact_threshold(session["attivita"], _get_config())
+    srv_impact = 1 if (_accel is not None and _thr > 0 and _accel >= _thr) else 0
+
     db.write_gps_point(
         session_id=session_id, ts=ts, lat=lat, lon=lon,
         alt_m=alt_m, accuracy_m=body.get("accuracy_m"),
         battery_pct=body.get("battery_pct"),
         speed_kmh=speed_kmh, vspeed_ms=vspeed_ms,
         motion_state=body.get("motion_state"),
-        impact_detected=body.get("impact_detected", False),
+        impact_detected=srv_impact,
         accel_magnitude=body.get("accel_magnitude"),
     )
 
@@ -1235,38 +1242,59 @@ async def admin_emergencies_api(request: Request, resolved: str = "false"):
 
 # ── Recorded tracks: browse and export (calibration) ─────────────────────────
 
-DATA_COLS = ["session_id", "ts", "lat", "lon", "alt_m", "accuracy_m", "battery_pct",
-             "speed_kmh", "vspeed_ms", "motion_state", "impact_detected", "accel_magnitude"]
+DATA_COLS = ["source", "subject", "nome", "ogn_id", "ts", "lat", "lon", "alt_m",
+             "accuracy_m", "battery_pct", "speed_kmh", "vspeed_ms", "course_deg",
+             "motion_state", "impact_detected", "accel_magnitude", "aircraft_type"]
 
 
 @app.get("/admin/tracks", response_class=HTMLResponse)
 async def admin_tracks(request: Request):
-    """Recorded app sessions, browsable and exportable to CSV for calibration."""
+    """Recorded tracks (app sessions + OGN), browsable and exportable for calibration."""
     user, redir = require_admin(request)
     if redir:
         return redir
-    sessions = db.get_all_sessions_summary()
-    return templates.TemplateResponse(request, "tracks.html",
-                                      {"user": user, "sessions": sessions, "cols": DATA_COLS})
+    return templates.TemplateResponse(request, "tracks.html", {
+        "user": user,
+        "sessions": db.get_all_sessions_summary(),
+        "ogn": db.get_all_ogn_summary(),
+        "cols": DATA_COLS,
+    })
 
 
 @app.get("/admin/tracks/export.csv")
-async def admin_tracks_export(request: Request, sessions: str = "", cols: str = ""):
+async def admin_tracks_export(request: Request, app: str = "", ogn: str = "", cols: str = ""):
     _, redir = require_admin(request)
     if redir:
         return redir
     import csv, io
-    ids = [int(x) for x in sessions.split(",") if x.strip().isdigit()]
+    app_ids = [int(x) for x in app.split(",") if x.strip().isdigit()]
+    ogn_ids = [x for x in ogn.split(",") if x.strip()]
     chosen = [c for c in cols.split(",") if c in DATA_COLS] or list(DATA_COLS)
-    if "session_id" not in chosen:
-        chosen = ["session_id"] + chosen
+    for k in ("subject", "source"):
+        if k not in chosen:
+            chosen.insert(0, k)
+
+    def _name(nome, cognome, fallback=""):
+        return ((nome or "") + " " + (cognome or "")).strip() or fallback
+
+    sess_name = {s["id"]: _name(s["nome"], s["cognome"], s["username"] or "")
+                 for s in db.get_all_sessions_summary()}
+    ogn_name  = {o["ogn_id"]: _name(o["nome"], o["cognome"])
+                 for o in db.get_all_ogn_summary()}
+
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(chosen)
-    for sid in ids:
+    for sid in app_ids:
         for p in db.get_session_points(sid):
-            p["session_id"] = sid
-            w.writerow([p.get(c) for c in chosen])
+            row = dict(p)
+            row.update(source="APP", subject=sid, nome=sess_name.get(sid, ""), ogn_id="")
+            w.writerow([row.get(c) for c in chosen])
+    for oid in ogn_ids:
+        for b in db.get_ogn_points(oid):
+            row = dict(b)
+            row.update(source="OGN", subject=oid, nome=ogn_name.get(oid, ""), ogn_id=oid)
+            w.writerow([row.get(c) for c in chosen])
     return Response(content=buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=grappasafe-tracks.csv"})
 

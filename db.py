@@ -362,6 +362,39 @@ def get_session_points(session_id):
     return [dict(r) for r in rows]
 
 
+def get_all_ogn_summary(limit=1000):
+    """OGN devices seen, with owner, count and time span, for the data page."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT b.ogn_id,
+               MAX(b.display_name)   AS display_name,
+               MAX(b.aircraft_type)  AS aircraft_type,
+               COUNT(*)              AS points,
+               MIN(b.ts)             AS first_ts,
+               MAX(b.ts)             AS last_ts,
+               u.nome, u.cognome
+        FROM ogn_beacons b
+        LEFT JOIN devices d ON b.ogn_id = d.ogn_id
+        LEFT JOIN users   u ON d.owner_user_id = u.id
+        GROUP BY b.ogn_id
+        ORDER BY last_ts DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_ogn_points(ogn_id):
+    """All beacons of an OGN device, full columns, for CSV export."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg, aircraft_type, state
+        FROM ogn_beacons WHERE ogn_id = ? ORDER BY ts
+    """, (ogn_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
 def get_device_owner_id(ogn_id):
     """Owner user_id of the device registered with this ogn_id, or None."""
     if not ogn_id:
