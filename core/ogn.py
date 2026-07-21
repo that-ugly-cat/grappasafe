@@ -203,14 +203,19 @@ def ogn_worker(stop_flag) -> None:
             if changed and old_state == FlightState.DESCENDING_FAST and tracker.state == FlightState.LANDED:
                 kind = ogn_kind(aircraft_type)
                 if rule_active(_db.load_em_rules(), "AUTO_CHUTE", kind):
-                    eid = _db.create_emergency(
-                        trigger=EmergencyTrigger.AUTO_CHUTE.value,
-                        lat=lat, lon=lon, alt_m=alt_m,
-                        ogn_beacon_id=beacon_id,
-                        note=f"OGN: {display_name}",
-                    )
-                    notify_emergency(eid)
-                    print(f"  [OGN] AUTO_CHUTE: {display_name} ({kind})")
+                    owner = _db.get_device_owner_id(ogn_id)
+                    if owner and _db.get_open_emergency_for_user(owner):
+                        # Same pilot already has an open emergency (e.g. via the app).
+                        print(f"  [OGN] chute deduped (already open): {display_name}")
+                    else:
+                        eid = _db.create_emergency(
+                            trigger=EmergencyTrigger.AUTO_CHUTE.value,
+                            lat=lat, lon=lon, alt_m=alt_m,
+                            ogn_beacon_id=beacon_id, user_id=owner,
+                            note=f"OGN: {display_name}",
+                        )
+                        notify_emergency(eid)
+                        print(f"  [OGN] AUTO_CHUTE: {display_name} ({kind})")
                 else:
                     print(f"  [OGN] chute landing ignored: {display_name} ({kind})")
             else:

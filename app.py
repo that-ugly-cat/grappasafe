@@ -82,10 +82,38 @@ def _retention_worker(stop_flag):
         stop_flag.wait(86400)
 
 
+def _pending_sweep_worker(stop_flag):
+    """Auto-confirm expired pending emergencies even without new GPS ticks — so a
+    phone that dies right after an AUTO_IMPACT still gets the emergency opened.
+    The GPS handler also does this, but only when a fresh point arrives."""
+    while not stop_flag.wait(15):
+        try:
+            now = datetime.now(timezone.utc)
+            cfg = _get_config()
+            with _trackers_lock:
+                items = list(_em_contexts.items())
+            for session_id, ctx in items:
+                if ctx.emergency_open or not ctx.pending_trigger or not ctx.pending_since:
+                    continue
+                if (now - ctx.pending_since).total_seconds() < cfg.pending_timeout_s:
+                    continue
+                tracker = _session_trackers.get(session_id)
+                last = ctx.recent[-1] if ctx.recent else None
+                lat  = last[1] if last else None
+                lon  = last[2] if last else None
+                t = ctx.pending_trigger
+                ctx.pending_trigger = None
+                ctx.pending_since   = None
+                _handle_emergency(session_id, ctx, tracker, t, lat, lon, None)
+        except Exception as e:
+            print(f"  [pending-sweep] error: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     threading.Thread(target=ogn_worker, args=(_stop_flag,), daemon=True).start()
     threading.Thread(target=_retention_worker, args=(_stop_flag,), daemon=True).start()
+    threading.Thread(target=_pending_sweep_worker, args=(_stop_flag,), daemon=True).start()
     yield
     _stop_flag.set()
 
@@ -358,7 +386,7 @@ async def session_start(request: Request):
         return JSONResponse({"error": "not authenticated"}, status_code=401)
     body = await request.json()
     attivita = body.get("attivita")
-    valid = {"PARAGLIDER","HANGGLIDER","GLIDER","CYCLIST","CLIMBER","HIKER","RUNNER","OTHER_ON_GROUND"}
+    valid = {"PARAGLIDER","HANGGLIDER","CYCLIST","CLIMBER","HIKER","RUNNER","OTHER_ON_GROUND"}
     if attivita not in valid:
         raise HTTPException(400, f"attivita deve essere uno di: {valid}")
     existing = db.get_active_session(user["id"])
@@ -581,6 +609,11 @@ async def gps_point(request: Request):
         # The SM keeps running internally but the DB stays at EMERGENCY
         update_em_context(ctx, old_state, tracker.state, now)
 
+    # Record where an impact happened, so we can forget it if the person then
+    # walks away from the spot (they're evidently ok).
+    if tracker.state == "IMPACT":
+        ctx.impact_lat, ctx.impact_lon = lat, lon
+
     # 2. Evaluate the EM. Each rule's mode (immediate / pending) comes from its
     #    config: immediate opens the emergency now, pending gives the user
     #    pending_timeout_s to confirm or cancel from the phone.
@@ -628,10 +661,15 @@ def _handle_emergency(session_id, ctx, tracker, trigger, lat, lon, alt_m):
     """Open an emergency: update the context, the DB, and send notifications."""
     ctx.emergency_open = True
     db.update_session_state(session_id, "EMERGENCY")
+    uid = tracker.user_id if tracker else None
+    # Dedup: don't open a second emergency for someone who already has one open
+    # (e.g. the same paraglider firing via both the app and OGN).
+    if uid and db.get_open_emergency_for_user(uid):
+        return
     eid = db.create_emergency(
         trigger=trigger.value,
         lat=lat, lon=lon, alt_m=alt_m,
-        session_id=session_id,
+        session_id=session_id, user_id=uid,
     )
     notify_emergency(eid)
 

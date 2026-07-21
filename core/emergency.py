@@ -45,8 +45,8 @@ class EmConfig:
 
     # Immobility is decided by displacement over a time window, not by
     # instantaneous GPS speed (which jitters and would reset the timer).
-    immobile_radius_m:    float = 30.0   # stayed within this over the window -> immobile
-    gps_accuracy_max_m:   float = 50.0   # ignore GPS points worse than this for immobility
+    immobile_radius_m:    float = 60.0   # stayed within this over the window -> immobile
+    gps_accuracy_max_m:   float = 100.0  # ignore GPS points worse than this for immobility
 
     # Impact threshold per activity, in g, decided server-side from the peak
     # acceleration reported by the app. Energies differ a lot by activity.
@@ -69,7 +69,6 @@ class EmConfig:
     # Ground emergency rules
     impact_recovery_s:    float = 120.0  # motionless after impact -> AUTO_IMPACT
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
-    ack_cooldown_s:       float = 1800.0 # quiet period after "I'm fine"
 
     # Reserve-chute rule: after DESCENDING_FAST -> LANDED, the pilot must stay
     # immobile (speed <= landing_speed_kmh) this long to confirm the emergency.
@@ -90,6 +89,8 @@ class EmContext:
 
     previous_sm_state:  Optional[str]      = None
     impact_at:          Optional[datetime] = None   # last IMPACT tick
+    impact_lat:         Optional[float]    = None   # where the impact happened
+    impact_lon:         Optional[float]    = None
     ack_at:             Optional[datetime] = None   # last "I'm fine"
     emergency_open:     bool               = False
 
@@ -179,6 +180,13 @@ def _is_immobile(recent, window_s, cfg: EmConfig, now: datetime) -> bool:
                for _, la, lo in pts)
 
 
+def _latest_good(recent, cfg: EmConfig):
+    """Most recent (lat, lon) with usable accuracy, or None."""
+    good = [(la, lo) for (t, la, lo, acc) in recent
+            if acc is None or acc <= cfg.gps_accuracy_max_m]
+    return good[-1] if good else None
+
+
 def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
     """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s.
     Immobility is measured by displacement (jitter-robust), not instant speed."""
@@ -209,15 +217,18 @@ def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> O
     if impact_relevant and ctx.ack_at and ctx.ack_at > impact_relevant:
         impact_relevant = None
 
-    # Quiet period right after "I'm fine".
-    if ctx.ack_at and (now - ctx.ack_at).total_seconds() < cfg.ack_cooldown_s:
-        return None
-
-    # Climbing: a fall fires on the impact itself. Telling an active climb from
-    # a fall needs vertical data (a barometer), added later with the dev build.
+    # Climbing: a fall fires on the impact itself, before any movement check.
+    # Telling an active climb from a fall needs vertical data (a barometer), later.
     if (impact_relevant and ctx.attivita == "CLIMBER"
             and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMPACT
+
+    # If they moved away from the impact spot, they're evidently ok: forget it.
+    if impact_relevant and ctx.impact_lat is not None:
+        latest = _latest_good(ctx.recent, cfg)
+        if latest and _haversine_m(ctx.impact_lat, ctx.impact_lon, latest[0], latest[1]) > cfg.immobile_radius_m:
+            ctx.impact_at = ctx.impact_lat = ctx.impact_lon = None
+            impact_relevant = None
 
     if (impact_relevant
             and _is_immobile(ctx.recent, cfg.impact_recovery_s, cfg, now)
@@ -275,14 +286,13 @@ CONFIG_META = [
     ("immobile_emergency_s", "EM", "terrestre", "Secondi fermo senza impatto → AUTO_IMMOBILE",    "float"),
     ("immobile_radius_m",    "EM", "terrestre", "Raggio entro cui si è considerati fermi nella finestra (m)", "float"),
     ("gps_accuracy_max_m",   "EM", "terrestre", "Accuratezza GPS oltre cui il punto è ignorato per l'immobilità (m)", "float"),
-    ("ack_cooldown_s",       "EM", "terrestre", "Secondi di pausa dopo 'sto bene' prima di riallarmare", "float"),
     ("pending_timeout_s",    "EM", "terrestre", "Secondi per confermare/annullare dal telefono (poi auto-confirm)", "float"),
 ]
 
 
 # Default emergency rules, seeded into the emergency_rules table.
 # (key, enabled, applies_to CSV, mode).
-FREE_FLIGHT = "PARAGLIDER,HANGGLIDER,GLIDER"
+FREE_FLIGHT = "PARAGLIDER,HANGGLIDER"
 GROUND_ALL  = "CYCLIST,CLIMBER,HIKER,RUNNER,OTHER_ON_GROUND"
 
 RULE_DEFAULTS = [
@@ -297,7 +307,7 @@ RULE_DEFAULTS = [
 # OGN/FLARM aircraft type codes -> activity label. Shared by the API and the
 # OGN worker to tell paragliders and hang gliders apart from powered traffic.
 _OGN_KIND = {
-    1:  "GLIDER",
+    1:  "AIRCRAFT",     # glider — not monitored, treated as generic aircraft
     2:  "AIRCRAFT",     # tow plane
     3:  "HELICOPTER",
     4:  "SKYDIVER",

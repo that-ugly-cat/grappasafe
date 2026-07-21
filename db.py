@@ -334,6 +334,16 @@ def get_device(device_id):
     return dict(row) if row else None
 
 
+def get_device_owner_id(ogn_id):
+    """Owner user_id of the device registered with this ogn_id, or None."""
+    if not ogn_id:
+        return None
+    con = _conn()
+    row = con.execute("SELECT owner_user_id FROM devices WHERE ogn_id=?", (ogn_id,)).fetchone()
+    con.close()
+    return row["owner_user_id"] if row else None
+
+
 def add_device(owner_user_id, display_name, ogn_id=None, activity=None, color="#3b82f6"):
     con = _conn()
     cur = con.execute(
