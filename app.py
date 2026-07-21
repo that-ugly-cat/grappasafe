@@ -926,9 +926,11 @@ async def admin_states_settings(request: Request):
 
 
 # Rule display metadata for the emergency-settings page.
-_FLIGHT_OPTS = [("PARAGLIDER", "Parapendio"), ("HANGGLIDER", "Deltaplano"), ("GLIDER", "Aliante")]
+_FLIGHT_OPTS = [("PARAGLIDER", "Parapendio"), ("HANGGLIDER", "Deltaplano")]
 _GROUND_OPTS = [("CYCLIST", "Ciclismo"), ("CLIMBER", "Arrampicata"), ("HIKER", "Escursionismo"),
                 ("RUNNER", "Trail running"), ("OTHER_ON_GROUND", "Altro")]
+# Impact applies to flight (hard landing / crash) and ground alike.
+_ALL_OPTS = _FLIGHT_OPTS + _GROUND_OPTS
 _RULE_UI = {
     "AUTO_CHUTE": {
         "title": "Paracadute di emergenza",
@@ -937,8 +939,8 @@ _RULE_UI = {
     },
     "AUTO_IMPACT": {
         "title": "Impatto + immobile",
-        "desc": "Dopo un <code>impact</code>, fermo per il tempo indicato.",
-        "activities": _GROUND_OPTS, "param_key": "impact_recovery_s", "param_label": "Fermo per",
+        "desc": "Dopo un <code>impact</code> (atterraggio duro / caduta in volo, o urto a terra), fermo per il tempo indicato.",
+        "activities": _ALL_OPTS, "param_key": "impact_recovery_s", "param_label": "Fermo per",
     },
     "AUTO_IMMOBILE": {
         "title": "Immobilità prolungata",
