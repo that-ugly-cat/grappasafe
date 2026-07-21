@@ -21,17 +21,31 @@ Generate a secret:
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-## 2. Elevation tiles
+## 2. Tiles
 
-Altitude thresholds are computed above ground level from SRTM1 tiles. Fetch them once
-(the app still runs without them, falling back to AMSL with reduced accuracy):
+**Elevation (SRTM1).** Altitude thresholds are computed above ground level. Fetch once (the
+app still runs without them, falling back to AMSL with reduced accuracy):
 
 ```bash
-./fetch_tiles.sh
+./fetch_tiles.sh          # N45E011.hgt + N45E012.hgt (~52 MB) into tiles/
 ```
 
-This downloads `N45E011.hgt` and `N45E012.hgt` (~52 MB) into `tiles/`. With Docker they are
-baked into the image at build time, so run this before building.
+With Docker these are baked into the image at build time, so run it before building.
+
+**Offline map (OpenTopoMap).** Optional, only for the mobile app's offline map. Fetch the
+raster tiles for the monitored circle once (zoom 9–16, ~350 MB), served under `/map-tiles/`:
+
+```bash
+python fetch_map_tiles.py
+```
+
+Unlike the SRTM tiles these are **not** baked into the image — they live in a host volume
+(`./map_tiles`, see `docker-compose.yml`). With Docker, fetch them into that volume from the
+running container, so no rebuild is needed:
+
+```bash
+docker compose exec api python fetch_map_tiles.py
+```
 
 ## 3. Local / bare-metal
 
@@ -52,7 +66,7 @@ docker compose up -d --build
 ```
 
 `docker-compose.yml` maps the app to `127.0.0.1:8010` and mounts `./data` for the SQLite
-file. Seed the admin user once the container is up:
+file and `./map_tiles` for the offline map tiles. Seed the admin user once the container is up:
 
 ```bash
 docker compose exec api python seed.py
