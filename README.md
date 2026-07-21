@@ -26,21 +26,47 @@ The core is split in two:
 - **Emergency manager** — decides when a situation becomes an emergency, from the states
   above and a set of thresholds editable at runtime from the admin UI.
 
-Emergency rules:
+Emergency triggers:
 
-- **Manual SOS** and **reserve chute** (fast descent → landing → immobile) fire immediately.
-- **Impact** and **prolonged immobility** go through a confirmation window: the user has a
-  few minutes to cancel from the phone before the alarm is raised.
+- **Manual SOS** — the subject taps the button in the app. Fires immediately.
+- **Reserve chute** — a fast vertical descent (`DESCENDING_FAST`) into a landing. Fires
+  immediately.
+- **Impact** — a hard acceleration peak followed by staying put. Goes through a confirmation
+  window: the subject has a few minutes to cancel from the phone before the alarm is raised.
+- **Prolonged immobility** — motionless for a long time with no preceding impact. Same
+  confirmation window; off by default, since a long rest is usually just a rest.
+
+Across all of them:
+
 - **Immobility is decided by displacement** over a time window, not by instantaneous GPS
   speed, so a jittery pin can't reset the timer. Points with poor accuracy are ignored, and
   an impact is forgotten once the person walks away from the spot.
 - A background **sweep auto-confirms an unanswered pending** even if the phone stops sending
   (a device that dies after an impact still gets the alarm opened server-side).
-- Emergencies are **deduplicated** across the app and OGN for the same person, so a pilot
-  flying with both doesn't raise two alarms.
-- An operator can **take an emergency in charge** (acknowledge) before resolving it; the
-  app surfaces that to the person in distress. Resolving an emergency ends the subject's
-  active session.
+- An operator can **take an emergency in charge** (acknowledge) before resolving it; the app
+  surfaces that to the person in distress. Resolving an emergency ends the subject's active
+  session.
+
+### App, OGN, and both
+
+The two sources observe different things, so they raise different alarms and back each other up:
+
+- **App (GPS + accelerometer).** The full set: manual SOS, reserve chute (confirmed by a
+  post-landing immobility check), impact (accelerometer, in flight and on the ground), and
+  prolonged immobility. Its vertical speed is derived from GPS altitude, so it is noisy —
+  there is no barometer.
+- **OGN / FLARM (APRS feed).** Reserve chute only. FLARM reports a clean vertical speed, so
+  the fast-descent detection is reliable even for a soft reserve — but there is no
+  accelerometer (no impact) and the beacons usually stop on the ground (no immobility check,
+  so the chute fires on the `DESCENDING_FAST → LANDED` transition itself).
+- **App + OGN (same pilot, device linked to the account).** Both nets run and complement each
+  other: OGN's clean vspeed catches a soft reserve the app's noisy GPS might miss, the app's
+  accelerometer catches a hard impact OGN cannot see. Only **one open emergency per person**
+  is kept — whichever source fires first wins and the other is **deduplicated by resolved
+  identity**. Impact is never fed into the OGN path: the two nets stay independent.
+
+A configurable **horizontal-speed cap** on the fast-descent check keeps powered aircraft
+diving through the area from being mistaken for a reserve.
 
 Altitude thresholds are computed above ground level using local SRTM1 tiles.
 
