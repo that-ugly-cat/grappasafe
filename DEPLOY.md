@@ -11,7 +11,7 @@ background thread, so there are no external services to run besides the app itse
 | `GRAPPASAFE_DB` | no | `grappasafe.db` | path to the SQLite file (`/data/grappasafe.db` in Docker) |
 | `AREA_LAT` / `AREA_LON` / `AREA_RADIUS_KM` | no | Monte Grappa, 19 km | monitoring area |
 | `APRS_USER` | no | `GSAFE1` | OGN/APRS receive callsign (passcode derived from it; keep it short and unique) |
-| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | no | empty | Telegram notifications (skipped if empty) |
+| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | no | empty | bootstrap fallback for Telegram; normally set from the admin **Notifiche** page instead (the DB values override env — see §6) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `NOTIFY_EMAIL` | no | empty | email notifications (skipped if unset) |
 | `ADMIN_USER` / `ADMIN_PASS` / `ADMIN_NOME` / `ADMIN_COGNOME` | no | `admin` / `changeme` | initial admin, created by `seed.py` |
 
@@ -84,13 +84,30 @@ grappasafe.borant.eu {
 
 Reload: `sudo systemctl reload caddy`. HTTPS certificates are issued automatically.
 
-## 6. Updating
+## 6. Notifications
+
+Emergency events — **opened, acknowledged, resolved** — are pushed to a Telegram group, each
+with the salient details and a link to the emergency page; the opening event also goes out by
+email. Configure Telegram from the admin **Notifiche** page (applied within 60 s, no restart):
+
+- **Bot token** — from `@BotFather`.
+- **Group chat id** — add the bot to the group, send a message, then read `chat.id` from
+  `https://api.telegram.org/bot<TOKEN>/getUpdates` (group ids start with `-100`).
+- **Public base URL** — e.g. `https://grappasafe.borant.eu`, used to build the emergency-page
+  link inside the messages.
+- An **on/off toggle** mutes notifications without clearing the token.
+
+Use **Salva e invia prova** to send a test message to the group. These values live in the
+database and override the `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` environment fallback; email
+uses the `SMTP_*` / `NOTIFY_EMAIL` variables.
+
+## 7. Updating
 
 ```bash
 git pull
 docker compose up -d --build
 ```
 
-## 7. Backup
+## 8. Backup
 
 The whole state is the SQLite file under `data/`. Back it up with a copy or `sqlite3 .backup`.

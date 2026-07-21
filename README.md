@@ -85,7 +85,10 @@ Altitude thresholds are computed above ground level using local SRTM1 tiles.
 - **Runtime configuration**: every state-machine / emergency threshold is editable from the
   admin config page, applied within 60 s with no restart.
 - **Shareable live map**: a public `/map/{token}` URL that refreshes every 15 s.
-- **Notifications** over Telegram and email.
+- **Notifications**: emergency **opened / acknowledged / resolved** pushed to a Telegram
+  group — salient details plus a link to the emergency page — and email on open. Bot token,
+  group id, the link's base URL and an on/off toggle are set from the admin panel, with the
+  environment values as a fallback.
 
 ## API for the app
 
