@@ -24,3 +24,61 @@
   <span class="tb-user" style="color:#888;font-size:.85rem">{{ user.username }}</span>
   <form method="post" action="/logout" style="display:inline"><button type="submit">Esci</button></form>
 </div>
+
+<!-- Global new-emergency alert, polled on every admin page -->
+<div id="em-alert-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(120,10,20,.55);align-items:center;justify-content:center;padding:1rem">
+  <div style="background:#2a0810;border:2px solid #e0304a;border-radius:14px;max-width:440px;width:100%;padding:1.8rem;text-align:center;box-shadow:0 12px 44px rgba(0,0,0,.6)">
+    <div style="font-size:2.4rem">🆘</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#ff5a6e;letter-spacing:1px;margin:.3rem 0 1rem">NUOVA EMERGENZA</div>
+    <div id="em-alert-name" style="font-size:1.25rem;font-weight:700;color:#fff"></div>
+    <div id="em-alert-act" style="color:#ffb3bd;margin-top:.3rem"></div>
+    <div id="em-alert-time" style="color:#cc9999;margin-top:.2rem;font-size:.9rem"></div>
+    <button id="em-alert-ok" style="margin-top:1.4rem;background:#e0304a;color:#fff;border:none;border-radius:8px;padding:.7rem 2rem;font-size:1rem;font-weight:700;cursor:pointer">OK — vai alle emergenze</button>
+  </div>
+</div>
+<script>
+(function () {
+  const ACT = {PARAGLIDER:'Parapendio',HANGGLIDER:'Deltaplano',AIRCRAFT:'Aeromobile',HELICOPTER:'Elicottero',CYCLIST:'Ciclismo',CLIMBER:'Arrampicata',HIKER:'Escursionismo',RUNNER:'Trail running',OTHER_ON_GROUND:'Altro'};
+  const KEY = 'gs_alerted_emergencies';
+  const seen = new Set(JSON.parse(localStorage.getItem(KEY) || '[]'));
+  const ov = document.getElementById('em-alert-overlay');
+  const queue = [];
+  let seeded = false;
+
+  function save() { localStorage.setItem(KEY, JSON.stringify([...seen].slice(-200))); }
+  function fmt(ts) {
+    if (!ts) return '';
+    const s = String(ts);
+    const d = new Date(s.replace(' ', 'T') + (s.includes('Z') || s.includes('+') ? '' : 'Z'));
+    return isNaN(d) ? '' : new Intl.DateTimeFormat('it-IT', {dateStyle:'short', timeStyle:'short', timeZone:'Europe/Rome'}).format(d);
+  }
+  function showNext() {
+    if (!queue.length) { ov.style.display = 'none'; return; }
+    const e = queue[0];
+    document.getElementById('em-alert-name').textContent = ((e.nome||'') + ' ' + (e.cognome||'')).trim() || '—';
+    document.getElementById('em-alert-act').textContent = ACT[e.attivita] || e.attivita || '—';
+    document.getElementById('em-alert-time').textContent = fmt(e.ts);
+    ov.style.display = 'flex';
+  }
+  document.getElementById('em-alert-ok').onclick = function () {
+    queue.shift();
+    if (!queue.length) location.href = '/admin/emergencies';
+    else showNext();
+  };
+  async function poll() {
+    try {
+      const r = await fetch('/api/admin/emergencies?resolved=false');
+      if (!r.ok) return;
+      const data = await r.json();
+      const fresh = data.filter(e => !seen.has(e.id));
+      fresh.forEach(e => seen.add(e.id));
+      save();
+      // Seed silently on first poll (don't announce already-open ones as new).
+      if (seeded && fresh.length) { queue.push(...fresh); if (ov.style.display !== 'flex') showNext(); }
+      seeded = true;
+    } catch (e) {}
+  }
+  poll();
+  setInterval(poll, 10000);
+})();
+</script>

@@ -39,7 +39,20 @@
     .btn-res:hover { background: #248a4a; }
     .btn-ack { background: #b8860b; color: #fff; border: none; border-radius: 5px; padding: .3rem .7rem; font-size: .8rem; cursor: pointer; }
     .btn-ack:hover { background: #d4a017; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
     .empty { color: #666; padding: 2rem; text-align: center; }
+
+    /* Mobile: turn the table into stacked cards */
+    @media (max-width: 720px) {
+      .content { margin: 1rem auto; padding: 0 .8rem 2rem; }
+      table, thead, tbody, tr, td { display: block; width: 100%; }
+      thead { display: none; }
+      tr { border: 1px solid #2e2e4e; border-radius: 8px; margin-bottom: .8rem; padding: .5rem .7rem; background: #1e1e38; }
+      td { border: none; padding: .3rem 0; display: flex; gap: .7rem; align-items: baseline; }
+      td::before { content: attr(data-label); color: #666; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; min-width: 82px; flex-shrink: 0; }
+      td.note-cell { max-width: none; }
+      tr.resolved { opacity: .7; }
+    }
   </style>
 </head>
 <body>
@@ -61,22 +74,25 @@
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Contatti</th><th>Posizione</th><th>Note</th><th></th></tr>
+      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Posizione</th><th>Note</th><th></th></tr>
     </thead>
     <tbody id="rows">
       {% for e in emergencies %}
       <tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
-        <td>{{ (e.ts | localtime) if e.ts else '—' }}</td>
-        <td>
+        <td data-label="Ora">
+          {{ (e.ts | localtime) if e.ts else '—' }}
+          <div class="meta"><a class="who-link" href="/admin/emergency/{{ e.id }}">apri scheda emergenza →</a></div>
+        </td>
+        <td data-label="Soggetto">
           {% if e.subject_user_id %}
             <a class="who-link" href="/admin/user/{{ e.subject_user_id }}">{{ e.nome }} {{ e.cognome }}</a>
           {% else %}
             <div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div>
           {% endif %}
         </td>
-        <td>{{ e.attivita or '—' }}</td>
-        <td><a class="who-link" href="/admin/emergency/{{ e.id }}">{{ TRIG.get(e.trigger, e.trigger) }}</a></td>
-        <td>
+        <td data-label="Attività">{{ e.attivita or '—' }}</td>
+        <td data-label="Trigger"><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
+        <td data-label="Stato">
           {% if e.resolved_at %}
             <span class="badge b-res">Risolta</span>
             <div class="meta">{{ e.resolved_at | localtime }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
@@ -85,16 +101,16 @@
             {% if e.acknowledged_at %}<div class="meta">✓ presa in carico</div>{% endif %}
           {% endif %}
         </td>
-        <td>
-          {% if e.telefono %}<div>📞 {{ e.telefono }}</div>{% endif %}
-          {% if e.emergenza_contatto or e.emergenza_telefono %}
-            <div class="meta">🆘 {{ e.emergenza_contatto or '' }}{% if e.emergenza_telefono %} · {{ e.emergenza_telefono }}{% endif %}</div>
+        <td data-label="Posizione">{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
+        <td data-label="Note" class="note-cell">{{ e.note or '—' }}</td>
+        <td data-label="Azioni">
+          {% if not e.resolved_at %}
+          <div class="actions">
+            {% if not e.acknowledged_at %}<button class="btn-ack" onclick="ack({{ e.id }})">Prendi in carico</button>{% endif %}
+            <button class="btn-res" onclick="resolve({{ e.id }}, {{ ((e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—'))|trim|tojson }}, {{ (e.ts | localtime)|tojson }})">Risolvi</button>
+          </div>
           {% endif %}
-          {% if not e.telefono and not e.emergenza_contatto and not e.emergenza_telefono %}—{% endif %}
         </td>
-        <td>{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
-        <td class="note-cell">{{ e.note or '—' }}</td>
-        <td>{% if not e.resolved_at %}{% if not e.acknowledged_at %}<button class="btn-ack" onclick="ack({{ e.id }})">Prendi in carico</button> {% endif %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -111,8 +127,10 @@ function setFilter(f, btn) {
   });
 }
 
-async function resolve(id) {
-  const note = prompt('Nota di risoluzione (obbligatoria): cosa è successo, com\'è finita?');
+async function resolve(id, nome, ts) {
+  const who = (nome || '').trim() || 'questa emergenza';
+  const head = `Risolvi emergenza — ${who}${ts ? ' · ' + ts : ''}`;
+  const note = prompt(`${head}\n\nNota di risoluzione (obbligatoria): cosa è successo, com'è finita?`);
   if (note === null) return;                 // annullato
   if (!note.trim()) { alert('La nota di risoluzione è obbligatoria.'); return; }
   const fd = new FormData(); fd.append('note', note.trim());

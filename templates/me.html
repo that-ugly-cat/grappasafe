@@ -55,16 +55,12 @@
         <option value="">Automatica (dal tipo OGN)</option>
         <option value="PARAGLIDER">Parapendio</option>
         <option value="HANGGLIDER">Deltaplano</option>
-        <option value="GLIDER">Aliante</option>
       </select>
     </label>
     <p style="color:#888;font-size:.85rem;margin-top:.3rem">
       Se la imposti, vince sul tipo dedotto dall'OGN: sulla mappa il tuo mezzo
       apparirà con l'attività che dichiari.
     </p>
-    <label>Colore sulla mappa
-      <input type="color" id="dev-color" value="#3b82f6" style="width:60px;height:38px;padding:2px">
-    </label>
     <div style="margin-top:1rem">
       <button class="btn btn-primary" onclick="saveDevice()">Salva</button>
       <button class="btn" onclick="closeForm()" style="margin-left:.5rem">Annulla</button>
@@ -85,7 +81,7 @@ function render() {
   }
   el.innerHTML = devices.map(d => `
     <div style="display:flex;align-items:center;gap:.8rem;padding:.6rem 0;border-bottom:1px solid #f0f0f0">
-      <span style="width:16px;height:16px;border-radius:50%;background:${d.color};flex-shrink:0"></span>
+      <span style="width:16px;height:16px;border-radius:50%;background:#4a6aab;flex-shrink:0"></span>
       <div style="flex:1">
         <div style="font-weight:600">${escapeHtml(d.display_name)}</div>
         <div style="color:#888;font-size:.85rem">${d.ogn_id ? 'OGN/FLARM: ' + escapeHtml(d.ogn_id) : '⚠ nessun ID OGN — non verrà riconosciuto'}</div>
@@ -97,7 +93,7 @@ function render() {
   `).join('');
 }
 
-const ACT_LABELS = { PARAGLIDER: 'Parapendio', HANGGLIDER: 'Deltaplano', GLIDER: 'Aliante' };
+const ACT_LABELS = { PARAGLIDER: 'Parapendio', HANGGLIDER: 'Deltaplano' };
 
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -108,7 +104,6 @@ function openForm() {
   document.getElementById('dev-name').value = '';
   document.getElementById('dev-ogn').value = '';
   document.getElementById('dev-activity').value = '';
-  document.getElementById('dev-color').value = '#3b82f6';
   document.getElementById('dev-error').textContent = '';
   document.getElementById('device-form').style.display = 'block';
 }
@@ -124,7 +119,6 @@ function editDevice(id) {
   document.getElementById('dev-name').value = d.display_name;
   document.getElementById('dev-ogn').value = d.ogn_id || '';
   document.getElementById('dev-activity').value = d.activity || '';
-  document.getElementById('dev-color').value = d.color || '#3b82f6';
   document.getElementById('dev-error').textContent = '';
   document.getElementById('device-form').style.display = 'block';
 }
@@ -134,11 +128,10 @@ async function saveDevice() {
   const name  = document.getElementById('dev-name').value.trim();
   const ogn   = document.getElementById('dev-ogn').value.trim();
   const activity = document.getElementById('dev-activity').value;
-  const color = document.getElementById('dev-color').value;
   const errEl = document.getElementById('dev-error');
   if (!name) { errEl.textContent = 'Il nome è obbligatorio'; return; }
 
-  const payload = { display_name: name, ogn_id: ogn, activity, color };
+  const payload = { display_name: name, ogn_id: ogn, activity };
   const url    = id ? `/api/me/devices/${id}` : '/api/me/devices';
   const method = id ? 'PUT' : 'POST';
   const res = await fetch(url, {

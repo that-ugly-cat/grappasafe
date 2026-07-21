@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
     /* ── Topbar ── */
     .topbar {
@@ -132,9 +132,8 @@
       <div class="filters" id="attivita-chips">
         <label class="chip on"><input type="checkbox" class="act-chip" value="PARAGLIDER" checked>Parapendio</label>
         <label class="chip on"><input type="checkbox" class="act-chip" value="HANGGLIDER" checked>Deltaplano</label>
-        <label class="chip on"><input type="checkbox" class="act-chip" value="GLIDER" checked>Aliante</label>
-        <label class="chip on"><input type="checkbox" class="act-chip" value="AIRCRAFT" checked>Aeromobile</label>
-        <label class="chip on"><input type="checkbox" class="act-chip" value="HELICOPTER" checked>Elicottero</label>
+        <label class="chip"><input type="checkbox" class="act-chip" value="AIRCRAFT">Aeromobile</label>
+        <label class="chip"><input type="checkbox" class="act-chip" value="HELICOPTER">Elicottero</label>
         <label class="chip on"><input type="checkbox" class="act-chip" value="CYCLIST" checked>Ciclismo</label>
         <label class="chip on"><input type="checkbox" class="act-chip" value="CLIMBER" checked>Arrampicata</label>
         <label class="chip on"><input type="checkbox" class="act-chip" value="HIKER" checked>Escursionismo</label>
@@ -244,7 +243,7 @@ function emergIcon() {
 
 function entityIcon(e) {
   if (e.state === 'EMERGENCY' || e.state === 'CRASH_LANDED') return emergIcon();
-  const color = e.source === 'OGN' ? '#a855f7' : '#3b82f6';
+  const color = activityColor(e.attivita);
   if (e.state === 'AIRBORNE' || e.state === 'EMERGENCY_CHUTE') return arrowIcon(e.course_deg, color);
   return circleIcon(color);
 }
@@ -269,8 +268,12 @@ function buildPopup(e) {
   </div>`;
 }
 
-const KNOWN_ACT  = new Set(['PARAGLIDER','HANGGLIDER','GLIDER','AIRCRAFT','HELICOPTER','CYCLIST','CLIMBER','HIKER','RUNNER','OTHER_ON_GROUND']);
+const KNOWN_ACT  = new Set(['PARAGLIDER','HANGGLIDER','AIRCRAFT','HELICOPTER','CYCLIST','CLIMBER','HIKER','RUNNER','OTHER_ON_GROUND']);
 const GROUND_ACT = new Set(['CYCLIST','CLIMBER','HIKER','RUNNER','OTHER_ON_GROUND']);
+
+// Track/icon colour by activity: blue for aerial, dark orange for ground.
+const COLOR_AIR = '#2b7fff', COLOR_GROUND = '#e8590c';
+function activityColor(attivita) { return GROUND_ACT.has(attivita) ? COLOR_GROUND : COLOR_AIR; }
 
 function selectedActivities() {
   return new Set([...document.querySelectorAll('.act-chip:checked')].map(c => c.value));
@@ -409,7 +412,7 @@ function renderMarkers() {
       markers[e.id].on('click', () => selectEntity(id));   // pin click → track + barogram
     }
     bounds.push([e.lat, e.lon]);
-    if (e.source === 'APP' && e.session_id) loadTrack(e.session_id, '#3b82f6');
+    if (e.source === 'APP' && e.session_id) loadTrack(e.session_id, activityColor(e.attivita));
   }
 
   if (bounds.length && !hasFitted) {
@@ -451,7 +454,7 @@ async function showBarogram(e) {
   // highlight the selected track on the map
   const latlngs = data.filter(p => p.lat != null).map(p => [p.lat, p.lon]);
   if (selTrack) selTrack.remove();
-  selTrack = L.polyline(latlngs, { color: '#ffd166', weight: 3, opacity: .95 }).addTo(map);
+  selTrack = L.polyline(latlngs, { color: activityColor(e.attivita), weight: 3, opacity: .95 }).addTo(map);
   baroData = data;
   hideHover();
 
