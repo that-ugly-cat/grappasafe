@@ -191,6 +191,11 @@ def init_db():
     if "witnesses_at" not in cols:
         con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_at TEXT")
         con.commit()
+    # Migration: track the automatic run separately from any manual one, so a
+    # preliminary manual click does not cancel the +10 min auto search.
+    if "witnesses_auto_at" not in cols:
+        con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_auto_at TEXT")
+        con.commit()
 
     _seed_config(con)
     _seed_rules(con)
@@ -963,8 +968,10 @@ def find_witnesses(emergency, radius_m=WITNESS_RADIUS_M,
     return sorted(witnesses.values(), key=lambda w: w["distance_m"])
 
 
-def save_witnesses(emergency_id, witnesses):
-    """Replace the saved witness snapshot for an emergency and stamp the search."""
+def save_witnesses(emergency_id, witnesses, auto=False):
+    """Replace the saved witness snapshot for an emergency and stamp the search.
+    auto=True also marks the automatic run as done, so it fires only once even
+    if an operator already ran a manual search earlier."""
     con = _conn()
     con.execute("DELETE FROM emergency_witnesses WHERE emergency_id=?", (emergency_id,))
     for w in witnesses:
@@ -976,20 +983,25 @@ def save_witnesses(emergency_id, witnesses):
         """, (emergency_id, w["kind"], w.get("user_id"), w.get("ogn_id"),
               w.get("label"), w.get("distance_m"), w.get("vdistance_m"),
               w.get("closest_ts"), w.get("n_points")))
-    con.execute("UPDATE emergencies SET witnesses_at=datetime('now') WHERE id=?",
-                (emergency_id,))
+    if auto:
+        con.execute("UPDATE emergencies SET witnesses_at=datetime('now'), "
+                    "witnesses_auto_at=datetime('now') WHERE id=?", (emergency_id,))
+    else:
+        con.execute("UPDATE emergencies SET witnesses_at=datetime('now') WHERE id=?",
+                    (emergency_id,))
     con.commit()
     con.close()
 
 
 def get_emergency_ids_due_for_witnesses(delay_s):
-    """IDs of located emergencies old enough to auto-run the witness search and
-    never searched yet. The witnesses_at NULL guard means a manual run (or a
-    previous auto run) is not repeated."""
+    """IDs of located emergencies old enough for the automatic witness search
+    that has not auto-run yet. Guarded on witnesses_auto_at (not witnesses_at),
+    so an earlier manual search does not suppress the +delay auto run, and the
+    auto run still fires exactly once."""
     con = _conn()
     rows = con.execute("""
         SELECT id FROM emergencies
-        WHERE witnesses_at IS NULL
+        WHERE witnesses_auto_at IS NULL
           AND lat IS NOT NULL
           AND datetime(ts) <= datetime('now', ?)
     """, (f'-{int(delay_s)} seconds',)).fetchall()

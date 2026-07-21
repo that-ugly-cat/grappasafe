@@ -117,14 +117,15 @@ WITNESS_AUTO_DELAY_S = 600
 
 def _witness_worker(stop_flag):
     """Ten minutes after an emergency starts, auto-run the witness search once,
-    while the surrounding tracks are still in the DB. Skips emergencies an
-    operator already searched (witnesses_at is then set)."""
+    while the surrounding tracks are still in the DB. Runs even if an operator
+    already did a preliminary manual search — a passer-by at minute 3 is missed
+    by a click at minute 2. Guarded on witnesses_auto_at so it fires only once."""
     while not stop_flag.wait(60):
         try:
             for eid in db.get_emergency_ids_due_for_witnesses(WITNESS_AUTO_DELAY_S):
                 em = db.get_emergency(eid)
                 if em:
-                    db.save_witnesses(eid, db.find_witnesses(em))
+                    db.save_witnesses(eid, db.find_witnesses(em), auto=True)
                     print(f"  [witnesses] auto-searched emergency {eid}")
         except Exception as e:
             print(f"  [witnesses] error: {e}")
