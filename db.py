@@ -982,6 +982,21 @@ def save_witnesses(emergency_id, witnesses):
     con.close()
 
 
+def get_emergency_ids_due_for_witnesses(delay_s):
+    """IDs of located emergencies old enough to auto-run the witness search and
+    never searched yet. The witnesses_at NULL guard means a manual run (or a
+    previous auto run) is not repeated."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT id FROM emergencies
+        WHERE witnesses_at IS NULL
+          AND lat IS NOT NULL
+          AND datetime(ts) <= datetime('now', ?)
+    """, (f'-{int(delay_s)} seconds',)).fetchall()
+    con.close()
+    return [r["id"] for r in rows]
+
+
 def get_witnesses(emergency_id):
     """Saved witness snapshot for an emergency, closest first."""
     con = _conn()

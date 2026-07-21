@@ -122,7 +122,7 @@
         <button class="btn-res" type="submit" style="background:#2a2a4e">Ripeti ricerca</button>
       </form>
     {% elif em.lat %}
-      <p class="muted" style="margin-bottom:.7rem">Cerca chi era tracciato (app o OGN) entro {{ witness_radius_m }} m dal punto dell'incidente, nel momento in cui è accaduto. Lanciala finché le tracce degli altri sono ancora a database.</p>
+      <p class="muted" style="margin-bottom:.7rem">Cerca chi era tracciato (app o OGN) entro {{ witness_radius_m }} m dal punto dell'incidente, nel momento in cui è accaduto (finestra ±5 min). Parte da sola 10 minuti dopo l'emergenza; puoi anche lanciarla subito qui.</p>
       <form method="POST" action="/admin/emergency/{{ em.id }}/witnesses">
         <button class="btn-res" type="submit">Trova eventuali testimoni</button>
       </form>

@@ -109,11 +109,33 @@ def _pending_sweep_worker(stop_flag):
             print(f"  [pending-sweep] error: {e}")
 
 
+# Auto-run the witness search this many seconds after an emergency starts. The
+# search window reaches +5 min past the event, so 10 min leaves margin for the
+# late fixes to arrive and be written before we look.
+WITNESS_AUTO_DELAY_S = 600
+
+
+def _witness_worker(stop_flag):
+    """Ten minutes after an emergency starts, auto-run the witness search once,
+    while the surrounding tracks are still in the DB. Skips emergencies an
+    operator already searched (witnesses_at is then set)."""
+    while not stop_flag.wait(60):
+        try:
+            for eid in db.get_emergency_ids_due_for_witnesses(WITNESS_AUTO_DELAY_S):
+                em = db.get_emergency(eid)
+                if em:
+                    db.save_witnesses(eid, db.find_witnesses(em))
+                    print(f"  [witnesses] auto-searched emergency {eid}")
+        except Exception as e:
+            print(f"  [witnesses] error: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     threading.Thread(target=ogn_worker, args=(_stop_flag,), daemon=True).start()
     threading.Thread(target=_retention_worker, args=(_stop_flag,), daemon=True).start()
     threading.Thread(target=_pending_sweep_worker, args=(_stop_flag,), daemon=True).start()
+    threading.Thread(target=_witness_worker, args=(_stop_flag,), daemon=True).start()
     yield
     _stop_flag.set()
 
