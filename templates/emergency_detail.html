@@ -100,6 +100,21 @@
   </div>
 
   <div class="card">
+    <h3>Presa in carico</h3>
+    {% if em.acknowledged_at %}
+      <div class="row"><span class="k">Presa in carico il</span><span class="v">{{ em.acknowledged_at | localtime }}</span></div>
+      <div class="row"><span class="k">Da</span><span class="v">{{ (em.acker_nome ~ ' ' ~ em.acker_cognome) if em.acker_nome else '—' }}</span></div>
+    {% elif not em.resolved_at %}
+      <p class="muted" style="margin-bottom:.7rem">Segnala sull'app dell'utente che i soccorsi hanno visto la richiesta e la stanno gestendo.</p>
+      <form method="POST" action="/admin/emergency/{{ em.id }}/ack">
+        <button class="btn-res" type="submit" style="background:#f0a500">Prendi in carico</button>
+      </form>
+    {% else %}
+      <div class="row"><span class="v muted">Non presa in carico prima della risoluzione.</span></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h3>Risoluzione</h3>
     {% if em.resolved_at %}
       <div class="row"><span class="k">Risolta il</span><span class="v">{{ em.resolved_at | localtime }}</span></div>

@@ -91,6 +91,8 @@ def init_db():
             lat             REAL,
             lon             REAL,
             alt_m           REAL,
+            acknowledged_at TEXT,
+            acknowledged_by INTEGER REFERENCES users(id),
             resolved_at     TEXT,
             resolved_by     INTEGER REFERENCES users(id),
             note            TEXT
@@ -149,6 +151,12 @@ def init_db():
     cols = [r["name"] for r in con.execute("PRAGMA table_info(emergencies)").fetchall()]
     if "user_id" not in cols:
         con.execute("ALTER TABLE emergencies ADD COLUMN user_id INTEGER REFERENCES users(id)")
+        con.commit()
+    # Migration: an operator can take an emergency in charge (acknowledge)
+    # before resolving it, so the person in distress gets a "seen" signal.
+    if "acknowledged_at" not in cols:
+        con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_at TEXT")
+        con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_by INTEGER REFERENCES users(id)")
         con.commit()
 
     _seed_config(con)
@@ -575,6 +583,19 @@ def create_emergency(trigger, lat, lon, alt_m=None, session_id=None, ogn_beacon_
     return emergency_id
 
 
+def acknowledge_emergency(emergency_id, acknowledged_by):
+    """Mark an emergency as taken in charge by an operator (distinct from
+    resolving it). No-op if already acknowledged or already resolved."""
+    con = _conn()
+    con.execute("""
+        UPDATE emergencies
+        SET acknowledged_at = datetime('now'), acknowledged_by = ?
+        WHERE id = ? AND acknowledged_at IS NULL AND resolved_at IS NULL
+    """, (acknowledged_by, emergency_id))
+    con.commit()
+    con.close()
+
+
 def resolve_emergency(emergency_id, resolved_by, note=None):
     con = _conn()
     con.execute("""
@@ -603,7 +624,7 @@ def get_open_emergencies():
                COALESCE(du.gruppo_sanguigno,   u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
                COALESCE(du.note_salute,        u.note_salute,        ou.note_salute)        AS note_salute,
                COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
-               COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
+               COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
                ob.ogn_id       AS ogn_id,
                ob.display_name AS ogn_name
         FROM emergencies e
@@ -650,18 +671,21 @@ def get_emergency(eid):
                COALESCE(du.note_salute,        u.note_salute,        ou.note_salute)        AS note_salute,
                COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
                COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
-               COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
+               COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
                ob.ogn_id       AS ogn_id,
                rb.nome         AS resolver_nome,
-               rb.cognome      AS resolver_cognome
+               rb.cognome      AS resolver_cognome,
+               ab.nome         AS acker_nome,
+               ab.cognome      AS acker_cognome
         FROM emergencies e
-        LEFT JOIN users       du ON e.user_id       = du.id
-        LEFT JOIN sessions    s  ON e.session_id    = s.id
-        LEFT JOIN users       u  ON s.user_id       = u.id
-        LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id = ob.id
-        LEFT JOIN devices     d  ON ob.ogn_id       = d.ogn_id
-        LEFT JOIN users       ou ON d.owner_user_id = ou.id
-        LEFT JOIN users       rb ON e.resolved_by   = rb.id
+        LEFT JOIN users       du ON e.user_id         = du.id
+        LEFT JOIN sessions    s  ON e.session_id      = s.id
+        LEFT JOIN users       u  ON s.user_id         = u.id
+        LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id   = ob.id
+        LEFT JOIN devices     d  ON ob.ogn_id         = d.ogn_id
+        LEFT JOIN users       ou ON d.owner_user_id   = ou.id
+        LEFT JOIN users       rb ON e.resolved_by     = rb.id
+        LEFT JOIN users       ab ON e.acknowledged_by = ab.id
         WHERE e.id = ?
     """, (eid,)).fetchone()
     con.close()
@@ -674,14 +698,14 @@ def get_all_emergencies():
     con = _conn()
     rows = con.execute("""
         SELECT e.*,
-               COALESCE(u.nome,               ou.nome)               AS nome,
-               COALESCE(u.cognome,            ou.cognome)            AS cognome,
-               COALESCE(u.telefono,           ou.telefono)           AS telefono,
-               COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
-               COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
-               COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
+               COALESCE(du.nome,               u.nome,               ou.nome)               AS nome,
+               COALESCE(du.cognome,            u.cognome,            ou.cognome)            AS cognome,
+               COALESCE(du.telefono,           u.telefono,           ou.telefono)           AS telefono,
+               COALESCE(du.emergenza_contatto, u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
+               COALESCE(du.emergenza_telefono, u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
+               COALESCE(du.gruppo_sanguigno,   u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
                COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
-               COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
+               COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
                ob.ogn_id       AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome

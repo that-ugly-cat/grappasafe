@@ -687,6 +687,7 @@ async def api_emergency_status(request: Request):
         "active": True,
         "emergency_id": em["id"],
         "since": em["ts"],
+        "acknowledged": bool(em["acknowledged_at"]),
         "message": msg,
     })
 
@@ -1186,6 +1187,17 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
         raise HTTPException(400, "La nota di risoluzione è obbligatoria")
     db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
     return RedirectResponse("/admin/emergencies", status_code=303)
+
+
+@app.post("/admin/emergency/{eid}/ack")
+async def ack_emergency(request: Request, eid: int):
+    """Operator takes the emergency in charge (seen and being handled). Distinct
+    from resolving: it gives the person in distress a 'seen' signal on the app."""
+    user, redir = require_viewer(request)
+    if redir:
+        return redir
+    db.acknowledge_emergency(eid, acknowledged_by=user["id"])
+    return RedirectResponse(f"/admin/emergency/{eid}", status_code=303)
 
 
 @app.post("/admin/user/create")
