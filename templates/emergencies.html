@@ -41,6 +41,9 @@
     .btn-ack:hover { background: #d4a017; }
     .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
     .empty { color: #666; padding: 2rem; text-align: center; }
+    .wit-line { font-size: .82rem; white-space: nowrap; }
+    .wit-line .wit-name { color: #ddd; }
+    .wit-line .wit-dist { color: #f0c674; }
 
     /* Mobile: turn the table into stacked cards */
     @media (max-width: 720px) {
@@ -74,7 +77,7 @@
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Posizione</th><th>Note</th><th></th></tr>
+      <tr><th>Ora</th><th>Soggetto</th><th>Attività</th><th>Trigger</th><th>Stato</th><th>Posizione</th><th>Testimoni</th><th>Note</th><th></th></tr>
     </thead>
     <tbody id="rows">
       {% for e in emergencies %}
@@ -102,6 +105,14 @@
           {% endif %}
         </td>
         <td data-label="Posizione">{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
+        <td data-label="Testimoni">
+          {% set ws = wmap.get(e.id) %}
+          {% if ws %}
+            {% for w in ws[:4] %}<div class="wit-line"><span class="wit-name">{{ w.label }}</span> <span class="wit-dist">{{ w.distance_m|round|int }} m</span></div>{% endfor %}
+            {% if ws|length > 4 %}<div class="meta">+{{ ws|length - 4 }} altri</div>{% endif %}
+          {% elif e.witnesses_at %}<span class="meta">nessuno</span>
+          {% else %}<span class="meta">—</span>{% endif %}
+        </td>
         <td data-label="Note" class="note-cell">{{ e.note or '—' }}</td>
         <td data-label="Azioni">
           {% if not e.resolved_at %}

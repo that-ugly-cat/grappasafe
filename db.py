@@ -8,8 +8,8 @@ import os
 DB_PATH = Path(os.getenv("GRAPPASAFE_DB", "grappasafe.db"))
 
 # Witness search defaults (metres, seconds).
-WITNESS_RADIUS_M  = 500.0    # horizontal
-WITNESS_VRADIUS_M = 500.0    # vertical, applied to flying candidates only
+WITNESS_RADIUS_M  = 300.0    # horizontal
+WITNESS_VRADIUS_M = 300.0    # vertical, applied to flying candidates only
 WITNESS_WINDOW_S  = 300      # ± around the emergency instant
 
 # Activities that fly: for these the vertical 500 m filter also applies.
@@ -1018,6 +1018,21 @@ def get_witnesses(emergency_id):
     ).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+def get_witnesses_map():
+    """All saved witnesses grouped by emergency_id (closest first), for the
+    recap page. One query instead of one per emergency."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT emergency_id, kind, user_id, ogn_id, label, distance_m
+        FROM emergency_witnesses ORDER BY emergency_id, distance_m
+    """).fetchall()
+    con.close()
+    m = {}
+    for r in rows:
+        m.setdefault(r["emergency_id"], []).append(dict(r))
+    return m
 
 
 # ── Retention ─────────────────────────────────────────────────────────────────

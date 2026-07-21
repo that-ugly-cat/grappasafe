@@ -1233,6 +1233,7 @@ async def admin_emergencies_page(request: Request):
     return templates.TemplateResponse(request, "emergencies.html", {
         "user": user,
         "emergencies": db.get_all_emergencies(),
+        "wmap": db.get_witnesses_map(),
     })
 
 
