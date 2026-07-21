@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="{{ lang | default('it') }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,12 +44,16 @@
   </span>
   <div>
     {% if user %}
-      {% if user.role == 'admin' %}<a href="/dashboard">Dashboard</a>{% endif %}
-      <a href="/me">I miei device</a>
-      <a href="/profile">Profilo</a>
+      {% if user.role == 'admin' %}<a href="/dashboard">{{ t('nav.dashboard') }}</a>{% endif %}
+      <a href="/me">{{ t('nav.myDevices') }}</a>
+      <a href="/profile">{{ t('nav.profile') }}</a>
       <form method="post" action="/logout" style="display:inline">
-        <button type="submit" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:1rem;margin-left:1rem">Esci</button>
+        <button type="submit" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:1rem;margin-left:1rem">{{ t('nav.logout') }}</button>
       </form>
+      <span style="margin-left:1rem;font-size:.85rem">
+        {% for l in web_langs %}<a href="/lang/{{ l }}?next={{ request.url.path }}"
+          style="margin-left:.4rem;{{ 'color:white;font-weight:700' if l == lang else 'color:#888' }}">{{ l|upper }}</a>{% endfor %}
+      </span>
     {% endif %}
   </div>
 </nav>

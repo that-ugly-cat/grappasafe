@@ -3,67 +3,49 @@
 {% block content %}
 
 <div class="card">
-  <h2 style="margin-bottom:.3rem">Ciao {{ user.nome }} 👋</h2>
-  <p style="color:#666">
-    Qui gestisci il tuo profilo e i tuoi <strong>dati medici</strong>, che i
-    soccorritori vedono subito in caso di emergenza.
-  </p>
+  <h2 style="margin-bottom:.3rem">{{ t('me.greeting', name=user.nome) }}</h2>
+  <p style="color:#666">{{ t('me.introHtml') | safe }}</p>
   <div style="margin-top:1rem">
-    <a href="/profile" class="btn btn-primary">Modifica profilo e dati medici</a>
+    <a href="/profile" class="btn btn-primary">{{ t('me.editProfileBtn') }}</a>
   </div>
 </div>
 
 <div class="card">
   <details {% if devices %}open{% endif %}>
   <summary style="cursor:pointer;font-weight:600;font-size:1.05rem">
-    Dispositivi FLARM / OGN
-    <span style="font-weight:400;color:#888">— opzionale, per chi vola con un tracker</span>
+    {{ t('me.flarmSummary') }}
+    <span style="font-weight:400;color:#888">{{ t('me.flarmSummaryOpt') }}</span>
   </summary>
-  <p style="color:#888;font-size:.9rem;margin:.7rem 0 1.2rem">
-    Serve solo se voli con parapendio, deltaplano o aliante e hai un tracker
-    FLARM/OGN a bordo: abbinarlo permette al sistema di riconoscerti quando sei
-    tracciato solo dall'OGN. La maggior parte degli utenti può ignorare questa sezione.
-  </p>
+  <p style="color:#888;font-size:.9rem;margin:.7rem 0 1.2rem">{{ t('me.flarmHelp') }}</p>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-    <h3 style="font-size:1.05rem">I miei device</h3>
-    <button class="btn btn-success" onclick="openForm()">+ Aggiungi device</button>
+    <h3 style="font-size:1.05rem">{{ t('me.myDevicesH3') }}</h3>
+    <button class="btn btn-success" onclick="openForm()">{{ t('me.addDevice') }}</button>
   </div>
 
-  <div id="devices-list">
-    {% if not devices %}
-      <p style="color:#888">Nessun device abbinato. Aggiungi il tuo FLARM/OGN per essere riconosciuto in volo.</p>
-    {% endif %}
-  </div>
+  <div id="devices-list"></div>
 
   <!-- Add/edit form -->
   <div id="device-form" style="display:none;margin-top:1rem;border-top:1px solid #eee;padding-top:1rem">
     <input type="hidden" id="dev-id">
-    <label>Nome del device
-      <input type="text" id="dev-name" placeholder="es. Vela rossa, Ozone Rush">
+    <label>{{ t('me.deviceNameLabel') }}
+      <input type="text" id="dev-name" placeholder="{{ t('me.deviceNamePlaceholder') }}">
     </label>
-    <label>OGN / FLARM ID
-      <input type="text" id="dev-ogn" placeholder="es. DDA123 (indirizzo esadecimale del transponder)">
+    <label>{{ t('me.ognIdLabel') }}
+      <input type="text" id="dev-ogn" placeholder="{{ t('me.ognIdPlaceholder') }}">
     </label>
-    <p style="color:#888;font-size:.85rem;margin-top:.3rem">
-      Lo trovi nella configurazione del tuo FLARM/OGN tracker, o su
-      <a href="https://www.glidernet.org/" target="_blank" rel="noopener">glidernet.org</a> /
-      <a href="https://ogn.flarm.com/" target="_blank" rel="noopener">OGN device database</a>.
-    </p>
-    <label>Attività
+    <p style="color:#888;font-size:.85rem;margin-top:.3rem">{{ t('me.ognIdHelpHtml') | safe }}</p>
+    <label>{{ t('me.activityLabel') }}
       <select id="dev-activity">
-        <option value="">Automatica (dal tipo OGN)</option>
-        <option value="PARAGLIDER">Parapendio</option>
-        <option value="HANGGLIDER">Deltaplano</option>
+        <option value="">{{ t('me.activityAuto') }}</option>
+        <option value="PARAGLIDER">{{ t('act.PARAGLIDER') }}</option>
+        <option value="HANGGLIDER">{{ t('act.HANGGLIDER') }}</option>
       </select>
     </label>
-    <p style="color:#888;font-size:.85rem;margin-top:.3rem">
-      Se la imposti, vince sul tipo dedotto dall'OGN: sulla mappa il tuo mezzo
-      apparirà con l'attività che dichiari.
-    </p>
+    <p style="color:#888;font-size:.85rem;margin-top:.3rem">{{ t('me.activityHelp') }}</p>
     <div style="margin-top:1rem">
-      <button class="btn btn-primary" onclick="saveDevice()">Salva</button>
-      <button class="btn" onclick="closeForm()" style="margin-left:.5rem">Annulla</button>
+      <button class="btn btn-primary" onclick="saveDevice()">{{ t('common.save') }}</button>
+      <button class="btn" onclick="closeForm()" style="margin-left:.5rem">{{ t('common.cancel') }}</button>
       <span id="dev-error" class="error"></span>
     </div>
   </div>
@@ -73,10 +55,23 @@
 <script>
 let devices = {{ devices | tojson }};
 
+const T = {
+  noDevices:      {{ t('me.noDevices') | tojson }},
+  ognPrefix:      {{ t('me.ognPrefix') | tojson }},
+  noOgnWarn:      {{ t('me.noOgnWarn') | tojson }},
+  activityPrefix: {{ t('me.activityPrefix') | tojson }},
+  edit:           {{ t('me.edit') | tojson }},
+  del:            {{ t('common.delete') | tojson }},
+  nameRequired:   {{ t('me.nameRequired') | tojson }},
+  saveError:      {{ t('me.saveError') | tojson }},
+  confirmDelete:  {{ t('me.confirmDelete') | tojson }},
+};
+const ACT_LABELS = { PARAGLIDER: {{ t('act.PARAGLIDER') | tojson }}, HANGGLIDER: {{ t('act.HANGGLIDER') | tojson }} };
+
 function render() {
   const el = document.getElementById('devices-list');
   if (!devices.length) {
-    el.innerHTML = '<p style="color:#888">Nessun device abbinato. Aggiungi il tuo FLARM/OGN per essere riconosciuto in volo.</p>';
+    el.innerHTML = `<p style="color:#888">${T.noDevices}</p>`;
     return;
   }
   el.innerHTML = devices.map(d => `
@@ -84,16 +79,14 @@ function render() {
       <span style="width:16px;height:16px;border-radius:50%;background:#4a6aab;flex-shrink:0"></span>
       <div style="flex:1">
         <div style="font-weight:600">${escapeHtml(d.display_name)}</div>
-        <div style="color:#888;font-size:.85rem">${d.ogn_id ? 'OGN/FLARM: ' + escapeHtml(d.ogn_id) : '⚠ nessun ID OGN — non verrà riconosciuto'}</div>
-        ${d.activity ? `<div style="color:#888;font-size:.85rem">Attività: ${ACT_LABELS[d.activity] || d.activity}</div>` : ''}
+        <div style="color:#888;font-size:.85rem">${d.ogn_id ? T.ognPrefix + escapeHtml(d.ogn_id) : T.noOgnWarn}</div>
+        ${d.activity ? `<div style="color:#888;font-size:.85rem">${T.activityPrefix}${ACT_LABELS[d.activity] || d.activity}</div>` : ''}
       </div>
-      <button class="btn" onclick="editDevice(${d.id})">Modifica</button>
-      <button class="btn btn-danger" onclick="deleteDevice(${d.id})">Elimina</button>
+      <button class="btn" onclick="editDevice(${d.id})">${T.edit}</button>
+      <button class="btn btn-danger" onclick="deleteDevice(${d.id})">${T.del}</button>
     </div>
   `).join('');
 }
-
-const ACT_LABELS = { PARAGLIDER: 'Parapendio', HANGGLIDER: 'Deltaplano' };
 
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -129,7 +122,7 @@ async function saveDevice() {
   const ogn   = document.getElementById('dev-ogn').value.trim();
   const activity = document.getElementById('dev-activity').value;
   const errEl = document.getElementById('dev-error');
-  if (!name) { errEl.textContent = 'Il nome è obbligatorio'; return; }
+  if (!name) { errEl.textContent = T.nameRequired; return; }
 
   const payload = { display_name: name, ogn_id: ogn, activity };
   const url    = id ? `/api/me/devices/${id}` : '/api/me/devices';
@@ -137,13 +130,13 @@ async function saveDevice() {
   const res = await fetch(url, {
     method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
   });
-  if (!res.ok) { errEl.textContent = 'Errore nel salvataggio'; return; }
+  if (!res.ok) { errEl.textContent = T.saveError; return; }
   await reload();
   closeForm();
 }
 
 async function deleteDevice(id) {
-  if (!confirm('Eliminare questo device?')) return;
+  if (!confirm(T.confirmDelete)) return;
   const res = await fetch(`/api/me/devices/${id}`, { method: 'DELETE' });
   if (res.ok) await reload();
 }

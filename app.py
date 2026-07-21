@@ -26,6 +26,7 @@ from core.emergency import (
     EmConfig, EmContext, EmergencyTrigger, evaluate_em, update_em_context, ack_ok, ogn_kind,
 )
 import db
+import webi18n
 
 _stop_flag = threading.Event()
 _session_trackers: dict[int, SessionTracker] = {}   # session_id -> SM tracker
@@ -296,6 +297,28 @@ async def dashboard(request: Request):
 
 # ── User home (/me): profile + OGN devices ───────────────────────────────────
 
+def _web_i18n(request: Request, user) -> dict:
+    """Context vars for translating the user-facing web pages (base nav, /me,
+    /profile). See webi18n.resolve_lang for how the language is chosen."""
+    lang = webi18n.resolve_lang(request, user)
+    return {
+        "t": webi18n.translator(lang),
+        "lang": lang,
+        "web_langs": webi18n.LANGS,
+        "web_lang_names": webi18n.LANG_NAMES,
+    }
+
+
+@app.get("/lang/{code}")
+async def set_web_lang(request: Request, code: str, next: str = "/me"):
+    """In-page language switcher: persist the choice in a cookie, then return."""
+    target = next if next.startswith("/") else "/me"
+    resp = RedirectResponse(target, status_code=303)
+    if code in webi18n.LANGS:
+        resp.set_cookie("web_lang", code, max_age=31_536_000, samesite="lax")
+    return resp
+
+
 @app.get("/me", response_class=HTMLResponse)
 async def me_home(request: Request):
     user, redir = require_auth(request)
@@ -304,6 +327,7 @@ async def me_home(request: Request):
     return templates.TemplateResponse(request, "me.html", {
         "user": user,
         "devices": db.get_user_devices(user["id"]),
+        **_web_i18n(request, user),
     })
 
 
@@ -375,7 +399,8 @@ async def profile_get(request: Request):
     user, redir = require_auth(request)
     if redir:
         return redir
-    return templates.TemplateResponse(request, "profile.html", {"user": user})
+    return templates.TemplateResponse(request, "profile.html",
+                                      {"user": user, **_web_i18n(request, user)})
 
 
 @app.post("/profile")
@@ -400,7 +425,10 @@ async def profile_post(
         flarm_id=flarm_id or None,
         lingua=lingua,
     )
-    return RedirectResponse("/me", status_code=303)
+    # The saved preference should win, so drop any temporary switcher override.
+    resp = RedirectResponse("/me", status_code=303)
+    resp.delete_cookie("web_lang")
+    return resp
 
 
 # ── Session API ───────────────────────────────────────────────────────────────
