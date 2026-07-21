@@ -107,7 +107,7 @@
           {% if not e.resolved_at %}
           <div class="actions">
             {% if not e.acknowledged_at %}<button class="btn-ack" onclick="ack({{ e.id }})">Prendi in carico</button>{% endif %}
-            <button class="btn-res" onclick="resolve({{ e.id }}, {{ ((e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—'))|trim|tojson }}, {{ (e.ts | localtime)|tojson }})">Risolvi</button>
+            <button class="btn-res" onclick='resolve({{ e.id }}, {{ ((e.nome ~ " " ~ e.cognome) if e.nome else (e.ogn_id or "—"))|trim|tojson }}, {{ (e.ts | localtime)|tojson }})'>Risolvi</button>
           </div>
           {% endif %}
         </td>
