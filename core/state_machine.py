@@ -166,8 +166,9 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
         return
 
     if state == FlightState.AIRBORNE:
-        # Fast descent check (reserve chute).
-        if vspeed_ms <= cfg.descending_vspeed_ms:
+        # Fast descent check (reserve chute). A reserve comes down fast vertically
+        # but slow horizontally, so cap the horizontal speed to exclude aircraft.
+        if vspeed_ms <= cfg.descending_vspeed_ms and speed_kmh <= cfg.descending_max_speed_kmh:
             since = get_since("descending_since")
             if since is None:
                 set_since("descending_since", now)

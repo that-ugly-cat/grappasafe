@@ -38,6 +38,8 @@ class EmConfig:
     landing_confirm_s:    float = 45.0   # seconds in condition to confirm
     descending_vspeed_ms: float = -8.0   # vspeed below this -> DESCENDING_FAST
     descending_confirm_s: float = 10.0   # seconds in condition to confirm
+    descending_max_speed_kmh: float = 50.0  # horizontal speed cap: a reserve
+    #   descent is slow horizontally; excludes fast aircraft diving through
 
     # Ground thresholds
     moving_speed_kmh:     float = 2.0    # below this the entity is not moving
@@ -283,6 +285,7 @@ CONFIG_META = [
     ("landing_confirm_s",    "SM", "volo", "Secondi in condizione atterraggio per confermare",   "float"),
     ("descending_vspeed_ms", "SM", "volo", "Velocità verticale soglia discesa rapida (m/s, negativo)", "float"),
     ("descending_confirm_s", "SM", "volo", "Secondi in discesa rapida per confermare",           "float"),
+    ("descending_max_speed_kmh", "SM", "volo", "Velocità orizzontale max per discesa paracadute (km/h, esclude aeromobili)", "float"),
 
     # State machine — ground
     ("moving_speed_kmh",     "SM", "terrestre", "Velocità minima per considerarsi in movimento (km/h)", "float"),
