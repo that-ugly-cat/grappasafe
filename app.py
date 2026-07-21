@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import uvicorn
 
 from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
@@ -1352,6 +1353,48 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
                 _session_trackers.pop(active["id"], None)
                 _em_contexts.pop(active["id"], None)
     return RedirectResponse("/admin/emergencies", status_code=303)
+
+
+# Shareable, self-expiring links to a single emergency, for non-users
+# (rescue services, family). The token is signed with SECRET_KEY and carries
+# its own timestamp, so it expires after SHARE_MAX_AGE_S with no storage to
+# clean up. Unguessable, but it exposes identity/medical data — hence 24h only.
+SHARE_MAX_AGE_S = 86400
+_share_signer = URLSafeTimedSerializer(SECRET_KEY, salt="emergency-share")
+
+
+@app.get("/admin/emergency/{eid}/share")
+async def emergency_share_link(request: Request, eid: int):
+    """Mint a 24h public link to this emergency. Returns the absolute URL."""
+    _, redir = require_viewer(request)
+    if redir:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    if not db.get_emergency(eid):
+        raise HTTPException(404, "Emergenza non trovata")
+    token = _share_signer.dumps(eid)
+    url = str(request.base_url).rstrip("/") + f"/e/{token}"
+    expires = datetime.now(timezone.utc) + timedelta(seconds=SHARE_MAX_AGE_S)
+    return JSONResponse({"url": url, "expires_at": expires.isoformat(),
+                         "hours": SHARE_MAX_AGE_S // 3600})
+
+
+@app.get("/e/{token}", response_class=HTMLResponse)
+async def emergency_public(request: Request, token: str):
+    """Public read-only view of one emergency, reached via a signed 24h link.
+    No login: the token is the credential. Expired or tampered -> a notice."""
+    try:
+        eid = _share_signer.loads(token, max_age=SHARE_MAX_AGE_S)
+    except SignatureExpired:
+        return templates.TemplateResponse(request, "emergency_public.html",
+                                          {"em": None, "reason": "expired"}, status_code=410)
+    except BadSignature:
+        return templates.TemplateResponse(request, "emergency_public.html",
+                                          {"em": None, "reason": "invalid"}, status_code=404)
+    em = db.get_emergency(eid)
+    if not em:
+        return templates.TemplateResponse(request, "emergency_public.html",
+                                          {"em": None, "reason": "invalid"}, status_code=404)
+    return templates.TemplateResponse(request, "emergency_public.html", {"em": em})
 
 
 @app.post("/admin/emergency/{eid}/witnesses")

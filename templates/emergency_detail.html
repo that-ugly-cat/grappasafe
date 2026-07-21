@@ -86,6 +86,18 @@
   </div>
 
   <div class="card">
+    <h3>Condivisione</h3>
+    <p class="muted" style="margin-bottom:.7rem">Crea un link da inviare a soccorsi o familiari non registrati: mostra posizione, contatti e dati medici, senza login. Scade dopo 24 ore.</p>
+    <button class="btn-res" style="background:#2a2a4e" onclick="makeShare()">Crea link (24h)</button>
+    <div id="share-box" style="display:none; margin-top:.8rem">
+      <input id="share-url" readonly onclick="this.select()" style="width:100%; background:#12122a; color:#eee; border:1px solid #3a3a5e; border-radius:6px; padding:.6rem; font-size:.85rem; margin-bottom:.5rem">
+      <button class="btn-res" onclick="copyShare()">Copia link</button>
+      <span class="muted" id="share-exp" style="margin-left:.6rem; font-size:.82rem"></span>
+    </div>
+    <span class="err" id="share-err"></span>
+  </div>
+
+  <div class="card">
     <h3>Posizione</h3>
     {% if em.lat %}
       <div class="row"><span class="k">Coordinate</span><span class="v">{{ "%.5f"|format(em.lat) }}, {{ "%.5f"|format(em.lon) }}
@@ -181,6 +193,22 @@ const map = L.map('em-map', { zoomControl: true }).setView([{{ em.lat }}, {{ em.
 L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 }).addTo(map);
 L.marker([{{ em.lat }}, {{ em.lon }}]).addTo(map);
 {% endif %}
+
+async function makeShare() {
+  const err = document.getElementById('share-err'); err.textContent = '';
+  const r = await fetch('/admin/emergency/{{ em.id }}/share');
+  if (!r.ok) { err.textContent = 'Errore nella creazione del link.'; return; }
+  const d = await r.json();
+  document.getElementById('share-url').value = d.url;
+  document.getElementById('share-exp').textContent = 'valido ' + d.hours + ' ore';
+  document.getElementById('share-box').style.display = 'block';
+}
+function copyShare() {
+  const el = document.getElementById('share-url');
+  el.select();
+  navigator.clipboard.writeText(el.value);
+  document.getElementById('share-exp').textContent = 'copiato ✓';
+}
 
 async function resolve() {
   const note = document.getElementById('note').value.trim();

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergenza — GrappaSafe</title>
+  {% if em %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>{% endif %}
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .bar { background: #12122a; padding: .7rem 1rem; border-bottom: 1px solid #2e2e4e; display: flex; align-items: center; gap: .6rem; }
+    .bar strong { font-size: 1.05rem; }
+    .bar .tag { font-size: .68rem; color: #888; border: 1px solid #2e2e4e; border-radius: 5px; padding: .1rem .45rem; }
+    .content { max-width: 720px; margin: 1.6rem auto; padding: 0 1.3rem 3rem; }
+    .head { display: flex; align-items: center; gap: .8rem; margin: .3rem 0 1.4rem; }
+    .head h2 { font-size: 1.5rem; color: #eee; }
+    .badge { font-size: .78rem; padding: .2rem .6rem; border-radius: 6px; white-space: nowrap; }
+    .b-open { background: #3a1a1f; color: #ff9a9a; }
+    .b-res  { background: #1a3a24; color: #86efac; }
+    .b-ack  { background: #3a2f14; color: #f0c674; }
+    .card { background: #1e1e38; border: 1px solid #2e2e4e; border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
+    .card h3 { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6ab0ff; margin-bottom: .9rem; }
+    .row { display: flex; padding: .35rem 0; font-size: .95rem; }
+    .row .k { color: #777; width: 190px; flex-shrink: 0; }
+    .row .v { color: #eee; }
+    .row .v.big { font-size: 1.15rem; font-weight: 600; }
+    a.maps, a.tel { color: #6ab0ff; text-decoration: none; }
+    a.maps:hover, a.tel:hover { text-decoration: underline; }
+    #em-map { height: 260px; border-radius: 8px; margin-top: .5rem; }
+    .muted { color: #666; }
+    .foot { color: #666; font-size: .8rem; text-align: center; margin-top: 1.6rem; }
+    .notice { max-width: 480px; margin: 4rem auto; text-align: center; padding: 0 1.3rem; }
+    .notice .icon { font-size: 3rem; }
+    .notice h1 { font-size: 1.4rem; margin: 1rem 0 .6rem; color: #eee; }
+    .notice p { color: #999; font-size: .95rem; }
+    @media (max-width: 600px) {
+      .row { flex-direction: column; gap: 0; }
+      .row .k { width: auto; font-size: .8rem; }
+      #em-map { height: 220px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bar"><span>🆘</span><strong>GrappaSafe</strong><span class="tag">Emergenza condivisa</span></div>
+
+{% if not em %}
+  <div class="notice">
+    <div class="icon">{{ '⏳' if reason == 'expired' else '🔒' }}</div>
+    <h1>{{ 'Link scaduto' if reason == 'expired' else 'Link non valido' }}</h1>
+    <p>{% if reason == 'expired' %}Questo link di condivisione era valido 24 ore ed è scaduto. Chiedi un nuovo link a chi te l'ha inviato.{% else %}Il link non è corretto o è stato modificato.{% endif %}</p>
+  </div>
+{% else %}
+{% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute di emergenza', 'AUTO_IMPACT': 'Impatto + immobile', 'AUTO_IMMOBILE': 'Immobilità prolungata'} %}
+{% set ACT = {'PARAGLIDER': 'Parapendio', 'HANGGLIDER': 'Deltaplano', 'CYCLIST': 'Ciclismo', 'CLIMBER': 'Arrampicata', 'HIKER': 'Escursionismo', 'RUNNER': 'Trail running', 'OTHER_ON_GROUND': 'Altro'} %}
+
+<div class="content">
+  <div class="head">
+    <span style="font-size:1.6rem">🆘</span>
+    <h2>{{ (em.nome ~ ' ' ~ em.cognome) if em.nome else (em.ogn_id or 'Sconosciuto') }}</h2>
+    {% if em.resolved_at %}<span class="badge b-res">Risolta</span>
+    {% elif em.acknowledged_at %}<span class="badge b-ack">Presa in carico</span>
+    {% else %}<span class="badge b-open">Aperta</span>{% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Situazione</h3>
+    <div class="row"><span class="k">Tipo di allerta</span><span class="v">{{ TRIG.get(em.trigger, em.trigger) }}</span></div>
+    <div class="row"><span class="k">Ora</span><span class="v">{{ (em.ts | localtime) if em.ts else '—' }}</span></div>
+    <div class="row"><span class="k">Attività</span><span class="v">{{ ACT.get(em.attivita, em.attivita) or '—' }}</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Posizione</h3>
+    {% if em.lat %}
+      <div class="row"><span class="k">Coordinate</span><span class="v big">{{ "%.5f"|format(em.lat) }}, {{ "%.5f"|format(em.lon) }}</span></div>
+      <div class="row"><span class="k"></span><span class="v"><a class="maps" href="https://maps.google.com/?q={{ em.lat }},{{ em.lon }}" target="_blank" rel="noopener">Apri in Google Maps</a>{% if em.alt_m %} · quota ⬆ {{ em.alt_m|round|int }} m{% endif %}</span></div>
+      <div id="em-map"></div>
+    {% else %}
+      <div class="muted">Posizione non disponibile.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Contatti</h3>
+    <div class="row"><span class="k">Telefono</span><span class="v">{% if em.telefono %}<a class="tel" href="tel:{{ em.telefono }}">{{ em.telefono }}</a>{% else %}—{% endif %}</span></div>
+    <div class="row"><span class="k">Contatto d'emergenza</span><span class="v">{{ em.emergenza_contatto or '—' }}{% if em.emergenza_telefono %} · <a class="tel" href="tel:{{ em.emergenza_telefono }}">{{ em.emergenza_telefono }}</a>{% endif %}</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Dati medici</h3>
+    <div class="row"><span class="k">Gruppo sanguigno</span><span class="v">{{ em.gruppo_sanguigno or '—' }}</span></div>
+    <div class="row"><span class="k">Note salute</span><span class="v">{{ em.note_salute or '—' }}</span></div>
+    <div class="row"><span class="k">Lingua</span><span class="v">{{ em.lingua or 'it' }}</span></div>
+  </div>
+
+  <div class="foot">Link temporaneo di GrappaSafe · scade 24 ore dopo la creazione.</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+{% if em.lat %}
+const map = L.map('em-map', { zoomControl: true }).setView([{{ em.lat }}, {{ em.lon }}], 14);
+L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 }).addTo(map);
+L.marker([{{ em.lat }}, {{ em.lon }}]).addTo(map);
+{% endif %}
+</script>
+{% endif %}
+</body>
+</html>
