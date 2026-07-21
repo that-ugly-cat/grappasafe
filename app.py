@@ -741,6 +741,7 @@ async def api_me(request: Request):
         "nome":     user["nome"] or "",
         "cognome":  user["cognome"] or "",
         "is_admin": user.get("role") == "admin",
+        "share_token":        user["share_token"],
         "telefono":           user.get("telefono") or "",
         "gruppo_sanguigno":   user.get("gruppo_sanguigno") or "",
         "emergenza_contatto": user.get("emergenza_contatto") or "",
