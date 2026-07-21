@@ -1,10 +1,19 @@
 import sqlite3
 import uuid
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 import os
 
 DB_PATH = Path(os.getenv("GRAPPASAFE_DB", "grappasafe.db"))
+
+# Witness search defaults (metres, seconds).
+WITNESS_RADIUS_M  = 500.0    # horizontal
+WITNESS_VRADIUS_M = 500.0    # vertical, applied to flying candidates only
+WITNESS_WINDOW_S  = 300      # ± around the emergency instant
+
+# Activities that fly: for these the vertical 500 m filter also applies.
+_FLIGHT_ACTIVITIES = {"PARAGLIDER", "HANGGLIDER"}
 
 
 def _conn(db_path=None):
@@ -107,6 +116,25 @@ def init_db():
             success         INTEGER DEFAULT 0
         );
 
+        -- Potential witnesses of an incident: subjects (app users or OGN
+        -- devices) tracked near the emergency at the time it happened. A
+        -- snapshot is saved so the identities survive track retention.
+        CREATE TABLE IF NOT EXISTS emergency_witnesses (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            emergency_id  INTEGER NOT NULL REFERENCES emergencies(id) ON DELETE CASCADE,
+            kind          TEXT NOT NULL,          -- app | ogn
+            user_id       INTEGER REFERENCES users(id),
+            ogn_id        TEXT,
+            label         TEXT,                   -- name / username / OGN display, snapshot
+            distance_m    REAL,                   -- closest horizontal distance
+            vdistance_m   REAL,                   -- closest vertical distance (flight only)
+            closest_ts    TEXT,                   -- ts of the closest fix
+            n_points      INTEGER,                -- fixes seen inside the window+radius
+            found_at      TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_witnesses_emergency ON emergency_witnesses (emergency_id);
+
         CREATE TABLE IF NOT EXISTS config (
             key         TEXT PRIMARY KEY,
             value       TEXT NOT NULL,
@@ -157,6 +185,11 @@ def init_db():
     if "acknowledged_at" not in cols:
         con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_at TEXT")
         con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_by INTEGER REFERENCES users(id)")
+        con.commit()
+    # Migration: remember when the witness search was last run, so the page can
+    # tell "no witnesses found" apart from "never searched".
+    if "witnesses_at" not in cols:
+        con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_at TEXT")
         con.commit()
 
     _seed_config(con)
@@ -791,6 +824,171 @@ def get_all_emergencies():
         ORDER BY e.ts DESC
         LIMIT 500
     """).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+# ── Witnesses ─────────────────────────────────────────────────────────────────
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Great-circle distance in metres between two lat/lon pairs."""
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _window_bounds(ts, window_s):
+    """UTC-naive lower/upper strings around an emergency timestamp."""
+    from datetime import timedelta
+    dt = None
+    if ts:
+        try:
+            dt = datetime.fromisoformat(ts)
+        except Exception:
+            try:
+                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                dt = None
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    return ((dt - timedelta(seconds=window_s)).strftime(fmt),
+            (dt + timedelta(seconds=window_s)).strftime(fmt))
+
+
+def find_witnesses(emergency, radius_m=WITNESS_RADIUS_M,
+                   vradius_m=WITNESS_VRADIUS_M, window_s=WITNESS_WINDOW_S):
+    """Find subjects tracked near an incident when it happened.
+
+    Scans app GPS points and OGN beacons inside a time window around the
+    emergency, keeps those within radius_m horizontally (and, for flying
+    candidates, within vradius_m vertically), excluding the subject. Returns
+    a list of witness dicts sorted by distance. Read-only: does not persist."""
+    lat0, lon0 = emergency.get("lat"), emergency.get("lon")
+    if lat0 is None or lon0 is None:
+        return []
+    alt0 = emergency.get("alt_m")
+    lo, hi = _window_bounds(emergency.get("ts"), window_s)
+    subj_uid     = emergency.get("subject_user_id")
+    subj_session = emergency.get("session_id")
+    subj_ogn     = emergency.get("ogn_id")
+
+    def _keep(cand_lat, cand_lon, cand_alt, is_flight):
+        if cand_lat is None or cand_lon is None:
+            return None
+        d = _haversine_m(lat0, lon0, cand_lat, cand_lon)
+        if d > radius_m:
+            return None
+        vd = None
+        if is_flight and alt0 is not None and cand_alt is not None:
+            vd = abs(cand_alt - alt0)
+            if vd > vradius_m:
+                return None
+        return d, vd
+
+    con = _conn()
+    # App candidates.
+    app_rows = con.execute("""
+        SELECT s.user_id, s.attivita, u.nome, u.cognome, u.username,
+               p.lat, p.lon, p.alt_m, p.ts
+        FROM gps_points p
+        JOIN sessions s ON p.session_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
+        WHERE datetime(p.ts) BETWEEN datetime(?) AND datetime(?)
+          AND (? IS NULL OR s.user_id != ?)
+          AND (? IS NULL OR p.session_id != ?)
+    """, (lo, hi, subj_uid, subj_uid, subj_session, subj_session)).fetchall()
+    # OGN candidates.
+    ogn_rows = con.execute("""
+        SELECT b.ogn_id, b.display_name, b.lat, b.lon, b.alt_m, b.ts,
+               d.owner_user_id, u.nome, u.cognome
+        FROM ogn_beacons b
+        LEFT JOIN devices d ON b.ogn_id = d.ogn_id
+        LEFT JOIN users   u ON d.owner_user_id = u.id
+        WHERE datetime(b.ts) BETWEEN datetime(?) AND datetime(?)
+          AND (? IS NULL OR b.ogn_id != ?)
+          AND (? IS NULL OR d.owner_user_id IS NULL OR d.owner_user_id != ?)
+    """, (lo, hi, subj_ogn, subj_ogn, subj_uid, subj_uid)).fetchall()
+    con.close()
+
+    witnesses = {}   # key -> witness dict
+
+    def _accumulate(key, base, res, ts):
+        d, vd = res
+        w = witnesses.get(key)
+        if w is None:
+            w = {**base, "distance_m": d, "vdistance_m": vd,
+                 "closest_ts": ts, "n_points": 0}
+            witnesses[key] = w
+        w["n_points"] += 1
+        if d < w["distance_m"]:
+            w["distance_m"], w["vdistance_m"], w["closest_ts"] = d, vd, ts
+
+    for r in app_rows:
+        is_flight = r["attivita"] in _FLIGHT_ACTIVITIES
+        res = _keep(r["lat"], r["lon"], r["alt_m"], is_flight)
+        if res is None:
+            continue
+        label = ((r["nome"] or "") + " " + (r["cognome"] or "")).strip() \
+            or r["username"] or "Sconosciuto"
+        key = ("user", r["user_id"]) if r["user_id"] else ("session-anon", id(r))
+        _accumulate(key, {"kind": "app", "user_id": r["user_id"],
+                          "ogn_id": None, "label": label}, res, r["ts"])
+
+    for r in ogn_rows:
+        res = _keep(r["lat"], r["lon"], r["alt_m"], True)   # OGN = flying
+        if res is None:
+            continue
+        owner = r["owner_user_id"]
+        # If the OGN owner is already a witness via the app, fold it in.
+        if owner and ("user", owner) in witnesses:
+            w = witnesses[("user", owner)]
+            w["ogn_id"] = w["ogn_id"] or r["ogn_id"]
+            d, vd = res
+            if d < w["distance_m"]:
+                w["distance_m"], w["vdistance_m"], w["closest_ts"] = d, vd, r["ts"]
+            w["n_points"] += 1
+            continue
+        name = ((r["nome"] or "") + " " + (r["cognome"] or "")).strip()
+        label = name or (r["display_name"] or r["ogn_id"])
+        key = ("user", owner) if owner else ("ogn", r["ogn_id"])
+        _accumulate(key, {"kind": "ogn", "user_id": owner,
+                          "ogn_id": r["ogn_id"], "label": label}, res, r["ts"])
+
+    return sorted(witnesses.values(), key=lambda w: w["distance_m"])
+
+
+def save_witnesses(emergency_id, witnesses):
+    """Replace the saved witness snapshot for an emergency and stamp the search."""
+    con = _conn()
+    con.execute("DELETE FROM emergency_witnesses WHERE emergency_id=?", (emergency_id,))
+    for w in witnesses:
+        con.execute("""
+            INSERT INTO emergency_witnesses
+                (emergency_id, kind, user_id, ogn_id, label,
+                 distance_m, vdistance_m, closest_ts, n_points)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (emergency_id, w["kind"], w.get("user_id"), w.get("ogn_id"),
+              w.get("label"), w.get("distance_m"), w.get("vdistance_m"),
+              w.get("closest_ts"), w.get("n_points")))
+    con.execute("UPDATE emergencies SET witnesses_at=datetime('now') WHERE id=?",
+                (emergency_id,))
+    con.commit()
+    con.close()
+
+
+def get_witnesses(emergency_id):
+    """Saved witness snapshot for an emergency, closest first."""
+    con = _conn()
+    rows = con.execute(
+        "SELECT * FROM emergency_witnesses WHERE emergency_id=? ORDER BY distance_m",
+        (emergency_id,),
+    ).fetchall()
     con.close()
     return [dict(r) for r in rows]
 

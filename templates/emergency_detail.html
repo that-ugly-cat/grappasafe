@@ -45,6 +45,16 @@
     .btn-res { background: #1a6a3a; color: #fff; border: none; border-radius: 6px; padding: .55rem 1.3rem; font-size: .9rem; font-weight: 600; cursor: pointer; }
     .btn-res:hover { background: #248a4a; }
     .err { color: #fca5a5; font-size: .85rem; margin-left: .6rem; }
+    .wit-list { display: flex; flex-direction: column; gap: .5rem; }
+    .wit { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; padding: .45rem .65rem; background: #12122a; border: 1px solid #2e2e4e; border-radius: 8px; }
+    .wit-src { font-size: .66rem; font-weight: 700; padding: .12rem .42rem; border-radius: 4px; letter-spacing: .04em; }
+    .src-app { background: #1a5a8a; color: #cfe6ff; }
+    .src-ogn { background: #4a2a8a; color: #e0d0ff; }
+    .wit-name { font-weight: 600; color: #eee; }
+    .wit-name a { color: #6ab0ff; text-decoration: none; }
+    .wit-name a:hover { text-decoration: underline; }
+    .wit-dist { color: #f0c674; font-size: .82rem; }
+    .wit-when { color: #666; font-size: .78rem; margin-left: auto; }
   </style>
 </head>
 <body>
@@ -84,6 +94,40 @@
       <div id="em-map"></div>
     {% else %}
       <div class="muted">Posizione non disponibile.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Testimoni</h3>
+    {% if em.witnesses_at %}
+      <p class="muted" style="margin-bottom:.7rem">Ricerca eseguita il {{ em.witnesses_at | localtime }} · entro {{ witness_radius_m }} m dal punto dell'incidente (per chi vola, anche {{ witness_radius_m }} m in verticale).</p>
+      {% if witnesses %}
+        <div class="wit-list">
+          {% for w in witnesses %}
+          <div class="wit">
+            <span class="wit-src {{ 'src-ogn' if w.kind == 'ogn' else 'src-app' }}">{{ 'OGN' if w.kind == 'ogn' else 'APP' }}</span>
+            <span class="wit-name">
+              {% if w.user_id %}<a href="/admin/user/{{ w.user_id }}">{{ w.label }}</a>{% else %}{{ w.label }}{% endif %}
+              {% if w.ogn_id %}<span class="trig muted"> · {{ w.ogn_id }}</span>{% endif %}
+            </span>
+            <span class="wit-dist">{{ w.distance_m|round|int }} m{% if w.vdistance_m is not none %} · Δh {{ w.vdistance_m|round|int }} m{% endif %}</span>
+            <span class="wit-when">{{ (w.closest_ts | localtime) if w.closest_ts else '' }} · {{ w.n_points }} fix</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">Nessun testimone trovato entro {{ witness_radius_m }} m.</div>
+      {% endif %}
+      <form method="POST" action="/admin/emergency/{{ em.id }}/witnesses" style="margin-top:.9rem">
+        <button class="btn-res" type="submit" style="background:#2a2a4e">Ripeti ricerca</button>
+      </form>
+    {% elif em.lat %}
+      <p class="muted" style="margin-bottom:.7rem">Cerca chi era tracciato (app o OGN) entro {{ witness_radius_m }} m dal punto dell'incidente, nel momento in cui è accaduto. Lanciala finché le tracce degli altri sono ancora a database.</p>
+      <form method="POST" action="/admin/emergency/{{ em.id }}/witnesses">
+        <button class="btn-res" type="submit">Trova eventuali testimoni</button>
+      </form>
+    {% else %}
+      <div class="muted">Posizione non disponibile: impossibile cercare testimoni.</div>
     {% endif %}
   </div>
 

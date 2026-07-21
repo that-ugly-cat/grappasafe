@@ -1224,7 +1224,9 @@ async def admin_emergency_detail(request: Request, eid: int):
         raise HTTPException(404, "Emergenza non trovata")
     devices = db.get_user_devices(em["subject_user_id"]) if em.get("subject_user_id") else []
     return templates.TemplateResponse(request, "emergency_detail.html",
-                                      {"user": user, "em": em, "devices": devices})
+                                      {"user": user, "em": em, "devices": devices,
+                                       "witnesses": db.get_witnesses(eid),
+                                       "witness_radius_m": int(db.WITNESS_RADIUS_M)})
 
 
 @app.get("/api/admin/emergencies")
@@ -1326,6 +1328,20 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
                 _session_trackers.pop(active["id"], None)
                 _em_contexts.pop(active["id"], None)
     return RedirectResponse("/admin/emergencies", status_code=303)
+
+
+@app.post("/admin/emergency/{eid}/witnesses")
+async def find_emergency_witnesses(request: Request, eid: int):
+    """Search for subjects tracked near the incident when it happened and save
+    the snapshot. Re-runnable; overwrites the previous result."""
+    user, redir = require_viewer(request)
+    if redir:
+        return redir
+    em = db.get_emergency(eid)
+    if not em:
+        raise HTTPException(404, "Emergenza non trovata")
+    db.save_witnesses(eid, db.find_witnesses(em))
+    return RedirectResponse(f"/admin/emergency/{eid}", status_code=303)
 
 
 @app.post("/admin/emergency/{eid}/ack")
