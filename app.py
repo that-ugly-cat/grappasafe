@@ -1206,7 +1206,9 @@ async def admin_emergency_detail(request: Request, eid: int):
     em = db.get_emergency(eid)
     if not em:
         raise HTTPException(404, "Emergenza non trovata")
-    return templates.TemplateResponse(request, "emergency_detail.html", {"user": user, "em": em})
+    devices = db.get_user_devices(em["subject_user_id"]) if em.get("subject_user_id") else []
+    return templates.TemplateResponse(request, "emergency_detail.html",
+                                      {"user": user, "em": em, "devices": devices})
 
 
 @app.get("/api/admin/emergencies")

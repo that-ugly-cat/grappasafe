@@ -71,6 +71,7 @@
     <div class="row"><span class="k">Trigger</span><span class="v"><span class="trig">{{ TRIG.get(em.trigger, em.trigger) }}</span></span></div>
     <div class="row"><span class="k">Ora</span><span class="v">{{ (em.ts | localtime) if em.ts else '—' }}</span></div>
     <div class="row"><span class="k">Attività</span><span class="v">{{ ACT.get(em.attivita, em.attivita) or '—' }}</span></div>
+    {% if devices %}<div class="row"><span class="k">Vela / device</span><span class="v">{{ devices | map(attribute='display_name') | join(' · ') }}</span></div>{% endif %}
     {% if em.ogn_id %}<div class="row"><span class="k">Device OGN</span><span class="v trig">{{ em.ogn_id }}</span></div>{% endif %}
   </div>
 
