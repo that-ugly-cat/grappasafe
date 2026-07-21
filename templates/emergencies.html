@@ -37,6 +37,8 @@
     a.maps:hover { text-decoration: underline; }
     .btn-res { background: #1a6a3a; color: #fff; border: none; border-radius: 5px; padding: .3rem .7rem; font-size: .8rem; cursor: pointer; }
     .btn-res:hover { background: #248a4a; }
+    .btn-ack { background: #b8860b; color: #fff; border: none; border-radius: 5px; padding: .3rem .7rem; font-size: .8rem; cursor: pointer; }
+    .btn-ack:hover { background: #d4a017; }
     .empty { color: #666; padding: 2rem; text-align: center; }
   </style>
 </head>
@@ -80,6 +82,7 @@
             <div class="meta">{{ e.resolved_at | localtime }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
           {% else %}
             <span class="badge b-open">Aperta</span>
+            {% if e.acknowledged_at %}<div class="meta">✓ presa in carico</div>{% endif %}
           {% endif %}
         </td>
         <td>
@@ -91,7 +94,7 @@
         </td>
         <td>{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
         <td class="note-cell">{{ e.note or '—' }}</td>
-        <td>{% if not e.resolved_at %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
+        <td>{% if not e.resolved_at %}{% if not e.acknowledged_at %}<button class="btn-ack" onclick="ack({{ e.id }})">Prendi in carico</button> {% endif %}<button class="btn-res" onclick="resolve({{ e.id }})">Risolvi</button>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -116,6 +119,12 @@ async function resolve(id) {
   const r = await fetch(`/admin/emergency/${id}/resolve`, { method: 'POST', body: fd });
   if (r.ok) location.reload();
   else alert('Errore: la risoluzione non è andata a buon fine.');
+}
+
+async function ack(id) {
+  const r = await fetch(`/admin/emergency/${id}/ack`, { method: 'POST' });
+  if (r.ok) location.reload();
+  else alert('Errore: impossibile prendere in carico.');
 }
 </script>
 </body>

@@ -27,7 +27,7 @@ import urllib.request
 
 from core.config import AREA_LAT, AREA_LON, AREA_RADIUS_KM
 
-MIN_ZOOM = 12
+MIN_ZOOM = 9
 MAX_ZOOM = 16
 TILE_SIZE = 256
 MARGIN_KM = 2.0          # allarga il clip di un margine per non tagliare i bordi
