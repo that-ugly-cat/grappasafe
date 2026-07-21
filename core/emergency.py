@@ -231,6 +231,7 @@ def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> O
             impact_relevant = None
 
     if (impact_relevant
+            and (now - ctx.impact_at).total_seconds() >= cfg.impact_recovery_s
             and _is_immobile(ctx.recent, cfg.impact_recovery_s, cfg, now)
             and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMPACT
