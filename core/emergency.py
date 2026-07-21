@@ -56,10 +56,10 @@ class EmConfig:
     impact_g_hiker:       float = 8.0
     impact_g_runner:      float = 8.0
     impact_g_other:       float = 0.0
-    # Flight impact (hard landing / crash), app accelerometer. Off until
-    # calibrated from real data — a normal landing must not cross it.
-    impact_g_paraglider:  float = 0.0
-    impact_g_hangglider:  float = 0.0
+    # Flight impact (hard landing / crash), app accelerometer. 10 g is a
+    # conservative start (a normal landing is ~1-3 g); refine from real data.
+    impact_g_paraglider:  float = 10.0
+    impact_g_hangglider:  float = 10.0
 
     # GPS gap: silence longer than this clears the streak timestamps.
     # Must be larger than the expected GPS interval (app default 15s).
