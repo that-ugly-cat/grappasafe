@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -1222,6 +1222,44 @@ async def admin_emergencies_api(request: Request, resolved: str = "false"):
     else:
         data = db.get_open_emergencies()
     return JSONResponse(data)
+
+
+# ── Recorded tracks: browse and export (calibration) ─────────────────────────
+
+DATA_COLS = ["session_id", "ts", "lat", "lon", "alt_m", "accuracy_m", "battery_pct",
+             "speed_kmh", "vspeed_ms", "motion_state", "impact_detected", "accel_magnitude"]
+
+
+@app.get("/admin/tracks", response_class=HTMLResponse)
+async def admin_tracks(request: Request):
+    """Recorded app sessions, browsable and exportable to CSV for calibration."""
+    user, redir = require_admin(request)
+    if redir:
+        return redir
+    sessions = db.get_all_sessions_summary()
+    return templates.TemplateResponse(request, "tracks.html",
+                                      {"user": user, "sessions": sessions, "cols": DATA_COLS})
+
+
+@app.get("/admin/tracks/export.csv")
+async def admin_tracks_export(request: Request, sessions: str = "", cols: str = ""):
+    _, redir = require_admin(request)
+    if redir:
+        return redir
+    import csv, io
+    ids = [int(x) for x in sessions.split(",") if x.strip().isdigit()]
+    chosen = [c for c in cols.split(",") if c in DATA_COLS] or list(DATA_COLS)
+    if "session_id" not in chosen:
+        chosen = ["session_id"] + chosen
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(chosen)
+    for sid in ids:
+        for p in db.get_session_points(sid):
+            p["session_id"] = sid
+            w.writerow([p.get(c) for c in chosen])
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=grappasafe-tracks.csv"})
 
 
 @app.post("/admin/emergency/{eid}/resolve")

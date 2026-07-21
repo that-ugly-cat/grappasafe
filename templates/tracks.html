@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracce — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .content { max-width: 1180px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
+    .subtitle { color: #888; font-size: .9rem; margin-bottom: 1.4rem; }
+    .panel { background: #1e1e38; border: 1px solid #2e2e4e; border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem; }
+    .panel h3 { font-size: .8rem; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .7rem; }
+    .cols { display: flex; flex-wrap: wrap; gap: .5rem .9rem; }
+    .cols label { font-size: .84rem; color: #cbd; display: flex; align-items: center; gap: .35rem; }
+    .actions { display: flex; gap: .8rem; align-items: center; margin-bottom: 1.2rem; flex-wrap: wrap; }
+    .btn { background: #1a6a3a; color: #fff; border: none; border-radius: 6px; padding: .5rem 1.1rem; font-size: .9rem; cursor: pointer; }
+    .btn:hover { background: #248a4a; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn-sec { background: #2a2a4e; color: #cbd; }
+    .btn-sec:hover { background: #3a3a5e; }
+    .count { color: #888; font-size: .85rem; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th { text-align: left; color: #666; font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; padding: .5rem .6rem; border-bottom: 1px solid #2e2e4e; }
+    td { padding: .55rem .6rem; border-bottom: 1px solid #23233e; vertical-align: top; }
+    tr.none td { color: #666; }
+    .who { font-weight: 600; color: #eee; }
+    .muted { color: #777; font-size: .8rem; }
+    .empty { color: #666; padding: 2rem; text-align: center; }
+    @media (max-width: 720px) {
+      .content { margin: 1rem auto; padding: 0 .8rem 2rem; }
+      table, thead, tbody, tr, td { display: block; width: 100%; }
+      thead { display: none; }
+      tr { border: 1px solid #2e2e4e; border-radius: 8px; margin-bottom: .8rem; padding: .5rem .7rem; background: #1e1e38; }
+      td { border: none; padding: .3rem 0; display: flex; gap: .7rem; }
+      td::before { content: attr(data-label); color: #666; font-size: .7rem; text-transform: uppercase; min-width: 78px; flex-shrink: 0; }
+      td.sel::before { content: ""; min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+
+{% set active = "tracks" %}{% include "_admin_topbar.html" %}
+
+{% set ACT = {'PARAGLIDER':'Parapendio','HANGGLIDER':'Deltaplano','CYCLIST':'Ciclismo','CLIMBER':'Arrampicata','HIKER':'Escursionismo','RUNNER':'Trail running','OTHER_ON_GROUND':'Altro'} %}
+
+<div class="content">
+  <h2>Tracce registrate</h2>
+  <p class="subtitle">Sessioni app salvate a database. Seleziona sessioni e colonne, poi esporta in CSV (apribile in Excel) per la taratura empirica delle soglie.</p>
+
+  <div class="panel">
+    <h3>Colonne da esportare</h3>
+    <div class="cols" id="cols">
+      {% for c in cols %}
+      <label><input type="checkbox" class="col-chk" value="{{ c }}" {% if c != 'session_id' %}checked{% endif %}>{{ c }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="export-btn" onclick="exportCsv()">Esporta CSV</button>
+    <button class="btn btn-sec" onclick="toggleAll(true)">Seleziona tutte</button>
+    <button class="btn btn-sec" onclick="toggleAll(false)">Deseleziona</button>
+    <span class="count" id="count">0 selezionate</span>
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th></th><th>Utente</th><th>Attività</th><th>Inizio</th><th>Fine</th><th>Punti</th></tr>
+    </thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr class="{{ 'none' if not s.points else '' }}">
+        <td class="sel"><input type="checkbox" class="sess-chk" value="{{ s.id }}" onchange="updateCount()"></td>
+        <td data-label="Utente"><span class="who">{{ (s.nome ~ ' ' ~ s.cognome) if s.nome else (s.username or '—') }}</span></td>
+        <td data-label="Attività">{{ ACT.get(s.attivita, s.attivita) or '—' }}</td>
+        <td data-label="Inizio">{{ (s.started_at | localtime) if s.started_at else '—' }}</td>
+        <td data-label="Fine">{{ (s.ended_at | localtime) if s.ended_at else '—' }}</td>
+        <td data-label="Punti">{{ s.points }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if not sessions %}<div class="empty">Nessuna sessione registrata.</div>{% endif %}
+</div>
+
+<script>
+function selectedSessions() {
+  return [...document.querySelectorAll('.sess-chk:checked')].map(c => c.value);
+}
+function selectedCols() {
+  return [...document.querySelectorAll('.col-chk:checked')].map(c => c.value);
+}
+function updateCount() {
+  const n = selectedSessions().length;
+  document.getElementById('count').textContent = n + ' selezionate';
+  document.getElementById('export-btn').disabled = n === 0;
+}
+function toggleAll(on) {
+  document.querySelectorAll('.sess-chk').forEach(c => c.checked = on);
+  updateCount();
+}
+function exportCsv() {
+  const ids = selectedSessions();
+  if (!ids.length) return;
+  const cols = selectedCols();
+  const url = `/admin/tracks/export.csv?sessions=${ids.join(',')}&cols=${cols.join(',')}`;
+  window.location = url;
+}
+updateCount();
+</script>
+</body>
+</html>

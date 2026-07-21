@@ -334,6 +334,34 @@ def get_device(device_id):
     return dict(row) if row else None
 
 
+def get_all_sessions_summary(limit=1000):
+    """App sessions with user, timing and point count, for the admin data page."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT s.id, s.attivita, s.started_at, s.ended_at, s.state,
+               u.nome, u.cognome, u.username,
+               (SELECT COUNT(*) FROM gps_points p WHERE p.session_id = s.id) AS points
+        FROM sessions s
+        LEFT JOIN users u ON s.user_id = u.id
+        ORDER BY s.started_at DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_session_points(session_id):
+    """All GPS points of a session, full columns, for CSV export."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT ts, lat, lon, alt_m, accuracy_m, battery_pct, speed_kmh, vspeed_ms,
+               motion_state, impact_detected, accel_magnitude
+        FROM gps_points WHERE session_id = ? ORDER BY ts
+    """, (session_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
 def get_device_owner_id(ogn_id):
     """Owner user_id of the device registered with this ogn_id, or None."""
     if not ogn_id:
