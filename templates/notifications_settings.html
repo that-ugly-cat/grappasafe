@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifiche — GrappaSafe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
+    .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
+    .topbar a:hover, .topbar button:hover { color: white; }
+    .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
+    .content { max-width: 720px; margin: 2rem auto; padding: 0 1.5rem 5rem; }
+    h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
+    .subtitle { color: #888; font-size: .9rem; margin-bottom: 1.8rem; line-height: 1.5; }
+    .card { background: #1e1e38; border: 1px solid #2e2e4e; border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem; }
+    .card h3 { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6ab0ff; margin-bottom: 1rem; }
+    .field { margin-bottom: 1.1rem; }
+    .field > label { display: block; color: #cbd; font-size: .9rem; margin-bottom: .35rem; }
+    .field .hint { color: #666; font-size: .78rem; margin-top: .3rem; line-height: 1.4; }
+    .field .hint code { color: #9ab; background: #12122a; padding: .05rem .3rem; border-radius: 4px; }
+    .field input[type=text] { width: 100%; background: #12122a; color: #eee; border: 1px solid #3a3a5e; border-radius: 6px; padding: .55rem .7rem; font-size: .9rem; font-family: monospace; }
+    .field input[type=text]:focus { outline: none; border-color: #4a9eff; }
+    .toggle { display: flex; align-items: center; gap: .6rem; }
+    .toggle input { width: 18px; height: 18px; }
+    .events { color: #aaa; font-size: .88rem; line-height: 1.7; }
+    .events b { color: #ddd; }
+    .flash { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1.2rem; font-size: .9rem; display: none; }
+    .flash-success { background: #1a3a1a; color: #86efac; border: 1px solid #2a5a2a; }
+    .flash-error { background: #3a1a1a; color: #fca5a5; border: 1px solid #5a2a2a; }
+    .actions { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+    .btn-save { background: #4a9eff; color: #06182e; border: none; border-radius: 8px; padding: .6rem 1.6rem; font-size: .95rem; font-weight: 700; cursor: pointer; }
+    .btn-save:hover { background: #6ab0ff; }
+    .btn-test { background: #2e2e4e; color: #cbd; border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; cursor: pointer; }
+    .btn-test:hover { background: #3a3a5e; }
+    .btn-save:disabled, .btn-test:disabled { opacity: .5; cursor: default; }
+  </style>
+</head>
+<body>
+
+{% set active = "notifications" %}{% include "_admin_topbar.html" %}
+
+<div class="content">
+  <h2>Notifiche Telegram</h2>
+  <p class="subtitle">Le emergenze vengono inviate a un gruppo Telegram. Ogni messaggio riporta gli elementi salienti e il link alla scheda. Modifiche attive entro 60 secondi, senza riavvio.</p>
+
+  <div id="flash-area"></div>
+
+  <div class="card">
+    <h3>Eventi inviati al gruppo</h3>
+    <div class="events">
+      🆘 <b>Emergenza aperta</b> — identità, contatti, dati medici, posizione, link<br>
+      ✅ <b>Presa in carico</b> — chi la sta gestendo, posizione, link<br>
+      🟢 <b>Risolta</b> — chi l'ha risolta, nota di chiusura, link
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Configurazione</h3>
+    <div class="field">
+      <div class="toggle">
+        <input type="checkbox" id="telegram_enabled" data-key="telegram_enabled" data-tipo="bool"
+               {{ 'checked' if (cfg.telegram_enabled.value if cfg.telegram_enabled else 'true') == 'true' else '' }}>
+        <label for="telegram_enabled" style="margin:0">Invia notifiche su Telegram</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Token del bot</label>
+      <input type="text" data-key="telegram_bot_token" data-tipo="text" placeholder="123456:ABC-..."
+             value="{{ cfg.telegram_bot_token.value if cfg.telegram_bot_token else '' }}">
+      <div class="hint">Ottenuto da <code>@BotFather</code>. Bot: <code>@GrappaSafe_bot</code>.</div>
+    </div>
+    <div class="field">
+      <label>ID del gruppo / chat</label>
+      <input type="text" data-key="telegram_chat_id" data-tipo="text" placeholder="-1001234567890"
+             value="{{ cfg.telegram_chat_id.value if cfg.telegram_chat_id else '' }}">
+      <div class="hint">Aggiungi il bot al gruppo, scrivi un messaggio, poi apri
+        <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> e copia <code>chat.id</code> (per i gruppi inizia con <code>-100</code>).</div>
+    </div>
+    <div class="field">
+      <label>URL pubblico del pannello</label>
+      <input type="text" data-key="public_base_url" data-tipo="text" placeholder="https://grappasafe.example.org"
+             value="{{ cfg.public_base_url.value if cfg.public_base_url else '' }}">
+      <div class="hint">Usato per comporre il link alla scheda emergenza dentro le notifiche. Senza barra finale.</div>
+    </div>
+    <div class="actions">
+      <button class="btn-save" id="btn-save" onclick="saveAll()">Salva</button>
+      <button class="btn-test" id="btn-test" onclick="saveAndTest()">Salva e invia prova</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function collect() {
+  const payload = {};
+  document.querySelectorAll('[data-key]').forEach(el => {
+    if (el.dataset.tipo === 'bool') payload[el.dataset.key] = el.checked ? 'true' : 'false';
+    else payload[el.dataset.key] = el.value.trim();
+  });
+  return payload;
+}
+function flash(msg, type) {
+  const area = document.getElementById('flash-area');
+  area.innerHTML = `<div class="flash flash-${type}" style="display:block">${msg}</div>`;
+  if (type === 'success') setTimeout(() => area.innerHTML = '', 5000);
+}
+async function save() {
+  const r = await fetch('/api/admin/config', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collect()),
+  });
+  const data = await r.json();
+  if (data.errors && data.errors.length) { flash('Errore su: ' + data.errors.map(e => e.key).join(', '), 'error'); return false; }
+  return true;
+}
+async function saveAll() {
+  const btn = document.getElementById('btn-save'); btn.disabled = true; btn.textContent = 'Salvataggio...';
+  try { if (await save()) flash('Configurazione salvata. Attiva entro 60s.', 'success'); }
+  catch { flash('Errore di rete.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Salva';
+}
+async function saveAndTest() {
+  const btn = document.getElementById('btn-test'); btn.disabled = true; btn.textContent = 'Invio...';
+  try {
+    if (await save()) {
+      const r = await fetch('/admin/notifications/test', { method: 'POST' });
+      const d = await r.json();
+      flash(d.ok ? 'Messaggio di prova inviato al gruppo ✓' : ('Invio fallito: ' + (d.detail || '')), d.ok ? 'success' : 'error');
+    }
+  } catch { flash('Errore di rete.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Salva e invia prova';
+}
+</script>
+</body>
+</html>

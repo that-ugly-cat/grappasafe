@@ -223,6 +223,22 @@ def _seed_config(con):
         "text", "APP", "app",
         "Messaggio mostrato sul telefono durante un'emergenza in corso",
     ))
+    # Telegram emergency notifications, editable from the admin panel. Left
+    # empty by default: nothing is sent until an admin fills token + chat id.
+    for key, value, tipo, descr in (
+        ("telegram_enabled",   "true", "bool",
+         "Invia le notifiche emergenza su Telegram"),
+        ("telegram_bot_token", "",     "text",
+         "Token del bot Telegram (da @BotFather)"),
+        ("telegram_chat_id",   "",     "text",
+         "ID del gruppo/chat Telegram dove inviare le notifiche"),
+        ("public_base_url",    "",     "text",
+         "URL pubblico del pannello (es. https://grappasafe.example.org), per il link nelle notifiche"),
+    ):
+        con.execute("""
+            INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (key, value, tipo, "NOTIFY", "notifiche", descr))
     con.commit()
 
 

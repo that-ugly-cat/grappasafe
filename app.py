@@ -16,7 +16,9 @@ import uvicorn
 
 from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
 from core.config import SECRET_KEY, AREA_LAT, AREA_LON, AREA_RADIUS_KM
-from core.notify import notify_emergency
+from core.notify import (
+    notify_emergency, notify_emergency_ack, notify_emergency_resolved, send_telegram_test,
+)
 from core.ogn import ogn_worker
 from core.state_machine import SessionTracker, update_sm, impact_threshold
 from core.terrain import compute_agl
@@ -975,6 +977,29 @@ async def admin_emergency_settings(request: Request):
     })
 
 
+@app.get("/admin/notifications-settings", response_class=HTMLResponse)
+async def admin_notifications_settings(request: Request):
+    user, redir = require_admin(request)
+    if redir:
+        return redir
+    cfg = {r["key"]: r for r in db.get_all_config() if r["macchina"] == "NOTIFY"}
+    return templates.TemplateResponse(request, "notifications_settings.html", {
+        "user": user, "cfg": cfg,
+    })
+
+
+@app.post("/admin/notifications/test")
+async def admin_notifications_test(request: Request):
+    """Send a test Telegram message with the currently saved config."""
+    _, redir = require_admin(request)
+    if redir:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    ok, detail = send_telegram_test(
+        "🔔 Test notifiche GrappaSafe — se leggi questo, il gruppo è configurato correttamente."
+    )
+    return JSONResponse({"ok": ok, "detail": detail})
+
+
 @app.post("/api/admin/rules")
 async def api_save_rules(request: Request):
     _, redir = require_admin(request)
@@ -1341,7 +1366,10 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
     if not note.strip():
         raise HTTPException(400, "La nota di risoluzione è obbligatoria")
     em = db.get_emergency(eid)
+    already_resolved = bool(em and em.get("resolved_at"))
     db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
+    if not already_resolved:
+        notify_emergency_resolved(eid)
     # Resolving an emergency closes the subject's activity: the session stays
     # alive (with GPS) during the emergency for the rescue, and is ended here.
     subject_id = em.get("subject_user_id") if em else None
@@ -1418,7 +1446,13 @@ async def ack_emergency(request: Request, eid: int):
     user, redir = require_viewer(request)
     if redir:
         return redir
+    em = db.get_emergency(eid)
+    # Only notify on a real transition: acknowledge_emergency is a no-op if it
+    # is already acknowledged or already resolved.
+    fresh = bool(em and not em.get("acknowledged_at") and not em.get("resolved_at"))
     db.acknowledge_emergency(eid, acknowledged_by=user["id"])
+    if fresh:
+        notify_emergency_ack(eid)
     return RedirectResponse(f"/admin/emergency/{eid}", status_code=303)
 
 
