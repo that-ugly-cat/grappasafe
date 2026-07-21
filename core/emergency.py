@@ -56,6 +56,10 @@ class EmConfig:
     impact_g_hiker:       float = 8.0
     impact_g_runner:      float = 8.0
     impact_g_other:       float = 0.0
+    # Flight impact (hard landing / crash), app accelerometer. Off until
+    # calibrated from real data — a normal landing must not cross it.
+    impact_g_paraglider:  float = 0.0
+    impact_g_hangglider:  float = 0.0
 
     # GPS gap: silence longer than this clears the streak timestamps.
     # Must be larger than the expected GPS interval (app default 15s).
@@ -187,7 +191,7 @@ def _latest_good(recent, cfg: EmConfig):
     return good[-1] if good else None
 
 
-def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
+def _eval_chute(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
     """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s.
     Immobility is measured by displacement (jitter-robust), not instant speed."""
     if ctx.chute_watch_since is None:
@@ -205,38 +209,56 @@ def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> O
     return None
 
 
+def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
+    """Flight: the reserve-chute gate (vertical speed) OR a hard impact followed
+    by immobility. Two independent nets — the chute catches soft descents when
+    the vspeed is clean (OGN / a barometer), the impact catches a hard landing on
+    any phone. Both dedup against an OGN emergency for the same pilot."""
+    return _eval_chute(ctx, cfg, rules, now) or _impact_immobile(ctx, cfg, rules, now)
+
+
+def _impact_immobile(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
+    """Hard impact, then immobile-since-impact for impact_recovery_s -> AUTO_IMPACT.
+    Shared by ground and flight (app accelerometer). The impact is forgotten if
+    the subject moves away from the spot (walked off / flew away = evidently ok)."""
+    impact_relevant = ctx.impact_at
+    if impact_relevant and ctx.ack_at and ctx.ack_at > impact_relevant:
+        impact_relevant = None
+    if not impact_relevant:
+        return None
+    if ctx.impact_lat is not None:
+        latest = _latest_good(ctx.recent, cfg)
+        if latest and _haversine_m(ctx.impact_lat, ctx.impact_lon, latest[0], latest[1]) > cfg.immobile_radius_m:
+            ctx.impact_at = ctx.impact_lat = ctx.impact_lon = None
+            return None
+    if ((now - ctx.impact_at).total_seconds() >= cfg.impact_recovery_s
+            and _is_immobile(ctx.recent, cfg.impact_recovery_s, cfg, now)
+            and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
+        return EmergencyTrigger.AUTO_IMPACT
+    return None
+
+
 def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
-    """Ground rules, immobility measured by displacement (jitter-robust):
-      AUTO_IMPACT:   impact, then stayed put for impact_recovery_s. For CLIMBER
-                     the impact fires directly — horizontal immobility is
-                     meaningless against a wall.
-      AUTO_IMMOBILE: stayed put without impact for immobile_emergency_s (off by default).
+    """Ground rules (immobility by displacement, jitter-robust):
+      AUTO_IMPACT:   impact then immobile-since-impact. For CLIMBER the impact
+                     fires directly (horizontal immobility is meaningless).
+      AUTO_IMMOBILE: immobile without impact (off by default).
     """
-    # An impact only counts if it hasn't been cleared by a later ack.
     impact_relevant = ctx.impact_at
     if impact_relevant and ctx.ack_at and ctx.ack_at > impact_relevant:
         impact_relevant = None
 
     # Climbing: a fall fires on the impact itself, before any movement check.
-    # Telling an active climb from a fall needs vertical data (a barometer), later.
     if (impact_relevant and ctx.attivita == "CLIMBER"
             and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMPACT
 
-    # If they moved away from the impact spot, they're evidently ok: forget it.
-    if impact_relevant and ctx.impact_lat is not None:
-        latest = _latest_good(ctx.recent, cfg)
-        if latest and _haversine_m(ctx.impact_lat, ctx.impact_lon, latest[0], latest[1]) > cfg.immobile_radius_m:
-            ctx.impact_at = ctx.impact_lat = ctx.impact_lon = None
-            impact_relevant = None
+    trigger = _impact_immobile(ctx, cfg, rules, now)
+    if trigger:
+        return trigger
 
-    if (impact_relevant
-            and (now - ctx.impact_at).total_seconds() >= cfg.impact_recovery_s
-            and _is_immobile(ctx.recent, cfg.impact_recovery_s, cfg, now)
-            and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
-        return EmergencyTrigger.AUTO_IMPACT
-
-    if (not impact_relevant and ctx.attivita != "CLIMBER"
+    # Immobile without any impact (off by default; never for climbing).
+    if (not ctx.impact_at and ctx.attivita != "CLIMBER"
             and _is_immobile(ctx.recent, cfg.immobile_emergency_s, cfg, now)
             and rule_active(rules, "AUTO_IMMOBILE", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMMOBILE
@@ -270,6 +292,8 @@ CONFIG_META = [
     ("impact_g_hiker",       "SM", "terrestre", "Soglia impatto escursionismo (g, 0 = disattivato)",   "float"),
     ("impact_g_runner",      "SM", "terrestre", "Soglia impatto trail running (g, 0 = disattivato)",   "float"),
     ("impact_g_other",       "SM", "terrestre", "Soglia impatto altre attività (g, 0 = disattivato)",  "float"),
+    ("impact_g_paraglider",  "SM", "volo", "Soglia impatto parapendio (g, 0 = disattivato)",       "float"),
+    ("impact_g_hangglider",  "SM", "volo", "Soglia impatto deltaplano (g, 0 = disattivato)",        "float"),
 
     # State machine — common
     ("max_gap_s",            "SM", "comune", "Silenzio GPS > N secondi → azzera le conferme in corso", "float"),
@@ -298,7 +322,7 @@ GROUND_ALL  = "CYCLIST,CLIMBER,HIKER,RUNNER,OTHER_ON_GROUND"
 
 RULE_DEFAULTS = [
     ("AUTO_CHUTE",    1, FREE_FLIGHT, "immediate"),
-    ("AUTO_IMPACT",   1, GROUND_ALL,  "pending"),
+    ("AUTO_IMPACT",   1, FREE_FLIGHT + "," + GROUND_ALL,  "pending"),
     # Prolonged immobility without an impact is almost always a legit break
     # (lunch, rest). Off by default; the admin can re-enable it on the EM page.
     ("AUTO_IMMOBILE", 0, GROUND_ALL,  "pending"),

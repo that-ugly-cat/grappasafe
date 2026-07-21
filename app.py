@@ -17,7 +17,7 @@ from auth import hash_password, verify_password, get_current_user, require_auth,
 from core.config import SECRET_KEY, AREA_LAT, AREA_LON, AREA_RADIUS_KM
 from core.notify import notify_emergency
 from core.ogn import ogn_worker
-from core.state_machine import SessionTracker, update_sm
+from core.state_machine import SessionTracker, update_sm, impact_threshold
 from core.terrain import compute_agl
 from core.emergency import (
     EmConfig, EmContext, EmergencyTrigger, evaluate_em, update_em_context, ack_ok, ogn_kind,
@@ -613,6 +613,15 @@ async def gps_point(request: Request):
     # walks away from the spot (they're evidently ok).
     if tracker.state == "IMPACT":
         ctx.impact_lat, ctx.impact_lon = lat, lon
+
+    # Flight sessions have no IMPACT state in the SM, so record a hard
+    # accelerometer impact directly — the EM raises "impact + immobility" from it.
+    if tracker.is_flight():
+        thr   = impact_threshold(tracker.attivita, cfg)
+        accel = body.get("accel_magnitude")
+        if accel is not None and thr > 0 and accel >= thr:
+            ctx.impact_at = now
+            ctx.impact_lat, ctx.impact_lon = lat, lon
 
     # 2. Evaluate the EM. Each rule's mode (immediate / pending) comes from its
     #    config: immediate opens the emergency now, pending gives the user
