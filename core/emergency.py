@@ -6,7 +6,8 @@ produced by the state machine and a set of configurable rules. Kept separate
 from the SM: the SM describes, the EM decides.
 """
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
@@ -41,6 +42,11 @@ class EmConfig:
     # Ground thresholds
     moving_speed_kmh:     float = 2.0    # below this the entity is not moving
     stationary_confirm_s: float = 20.0   # seconds below speed -> STATIONARY
+
+    # Immobility is decided by displacement over a time window, not by
+    # instantaneous GPS speed (which jitters and would reset the timer).
+    immobile_radius_m:    float = 30.0   # stayed within this over the window -> immobile
+    gps_accuracy_max_m:   float = 50.0   # ignore GPS points worse than this for immobility
 
     # Impact threshold per activity, in g, decided server-side from the peak
     # acceleration reported by the app. Energies differ a lot by activity.
@@ -97,6 +103,10 @@ class EmContext:
     # stay immobile for chute_immobile_s to confirm; cleared if they move.
     chute_watch_since:  Optional[datetime]           = None
 
+    # Recent positions (ts, lat, lon, accuracy_m) for displacement-based
+    # immobility. Appended by the GPS handler each tick, pruned to a horizon.
+    recent:             list                         = field(default_factory=list)
+
 
 def update_em_context(ctx: EmContext, old_state: str, new_state: str, now: datetime):
     """Called by app.py on every SM transition to update the EM memory."""
@@ -134,54 +144,88 @@ def evaluate_em(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime,
         return None
 
     if ctx.attivita in FLIGHT_ACTIVITIES:
-        return _eval_flight(ctx, cfg, rules, now, speed_kmh)
+        return _eval_flight(ctx, cfg, rules, now)
     elif ctx.attivita in GROUND_ACTIVITIES:
         return _eval_ground(ctx, cfg, rules, now)
     return None
 
 
-def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime,
-                 speed_kmh) -> Optional[EmergencyTrigger]:
-    """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s."""
+def _haversine_m(lat1, lon1, lat2, lon2) -> float:
+    R = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def _is_immobile(recent, window_s, cfg: EmConfig, now: datetime) -> bool:
+    """True if the entity stayed within immobile_radius_m over the last window_s.
+
+    Displacement-based, so a jittery GPS speed spike can't reset the timer. Uses
+    only points with usable accuracy, and needs history covering (most of) the
+    window — otherwise we can't yet claim immobility for that long.
+    """
+    pts = [(t, la, lo) for (t, la, lo, acc) in recent
+           if (now - t).total_seconds() <= window_s
+           and (acc is None or acc <= cfg.gps_accuracy_max_m)]
+    if len(pts) < 2:
+        return False
+    oldest = min(t for t, _, _ in pts)
+    if (now - oldest).total_seconds() < window_s * 0.8:
+        return False
+    _, la0, lo0 = min(pts, key=lambda p: p[0])
+    return all(_haversine_m(la0, lo0, la, lo) <= cfg.immobile_radius_m
+               for _, la, lo in pts)
+
+
+def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
+    """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s.
+    Immobility is measured by displacement (jitter-robust), not instant speed."""
     if ctx.chute_watch_since is None:
         return None
     if not rule_active(rules, "AUTO_CHUTE", ctx.attivita):
         ctx.chute_watch_since = None
         return None
-    # Pilot got up and moved away -> not an emergency.
-    if speed_kmh is not None and speed_kmh > cfg.landing_speed_kmh:
-        ctx.chute_watch_since = None
-        return None
-    if (now - ctx.chute_watch_since).total_seconds() >= cfg.chute_immobile_s:
+    if (now - ctx.chute_watch_since).total_seconds() < cfg.chute_immobile_s:
+        return None  # not enough time watched yet
+    if _is_immobile(ctx.recent, cfg.chute_immobile_s, cfg, now):
         ctx.chute_watch_since = None
         return EmergencyTrigger.AUTO_CHUTE
+    # Time passed but the pilot moved away from the landing spot: stand down.
+    ctx.chute_watch_since = None
     return None
 
 
 def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
-    """Ground rules:
-      AUTO_IMPACT:   STATIONARY after an IMPACT for > impact_recovery_s
-      AUTO_IMMOBILE: STATIONARY without impact for > immobile_emergency_s (off by default)
+    """Ground rules, immobility measured by displacement (jitter-robust):
+      AUTO_IMPACT:   impact, then stayed put for impact_recovery_s. For CLIMBER
+                     the impact fires directly — horizontal immobility is
+                     meaningless against a wall.
+      AUTO_IMMOBILE: stayed put without impact for immobile_emergency_s (off by default).
     """
-    if ctx.current_sm_state != GroundState.STATIONARY:
-        return None
-
-    seconds_stationary = (now - ctx.state_entered_at).total_seconds()
-
     # An impact only counts if it hasn't been cleared by a later ack.
     impact_relevant = ctx.impact_at
     if impact_relevant and ctx.ack_at and ctx.ack_at > impact_relevant:
         impact_relevant = None
 
-    # General ack cooldown, to avoid false positives right after "I'm fine".
+    # Quiet period right after "I'm fine".
     if ctx.ack_at and (now - ctx.ack_at).total_seconds() < cfg.ack_cooldown_s:
         return None
 
-    if (impact_relevant and seconds_stationary >= cfg.impact_recovery_s
+    # Climbing: a fall fires on the impact itself. Telling an active climb from
+    # a fall needs vertical data (a barometer), added later with the dev build.
+    if (impact_relevant and ctx.attivita == "CLIMBER"
             and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMPACT
 
-    if (not impact_relevant and seconds_stationary >= cfg.immobile_emergency_s
+    if (impact_relevant
+            and _is_immobile(ctx.recent, cfg.impact_recovery_s, cfg, now)
+            and rule_active(rules, "AUTO_IMPACT", ctx.attivita)):
+        return EmergencyTrigger.AUTO_IMPACT
+
+    if (not impact_relevant and ctx.attivita != "CLIMBER"
+            and _is_immobile(ctx.recent, cfg.immobile_emergency_s, cfg, now)
             and rule_active(rules, "AUTO_IMMOBILE", ctx.attivita)):
         return EmergencyTrigger.AUTO_IMMOBILE
 
@@ -229,6 +273,8 @@ CONFIG_META = [
     # Emergency machine — ground rules
     ("impact_recovery_s",    "EM", "terrestre", "Secondi fermo dopo impatto → AUTO_IMPACT",       "float"),
     ("immobile_emergency_s", "EM", "terrestre", "Secondi fermo senza impatto → AUTO_IMMOBILE",    "float"),
+    ("immobile_radius_m",    "EM", "terrestre", "Raggio entro cui si è considerati fermi nella finestra (m)", "float"),
+    ("gps_accuracy_max_m",   "EM", "terrestre", "Accuratezza GPS oltre cui il punto è ignorato per l'immobilità (m)", "float"),
     ("ack_cooldown_s",       "EM", "terrestre", "Secondi di pausa dopo 'sto bene' prima di riallarmare", "float"),
     ("pending_timeout_s",    "EM", "terrestre", "Secondi per confermare/annullare dal telefono (poi auto-confirm)", "float"),
 ]

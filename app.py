@@ -561,6 +561,11 @@ async def gps_point(request: Request):
             _session_trackers[session_id] = tracker
             _em_contexts[session_id]      = ctx
 
+    # Buffer recent positions for displacement-based immobility (jitter-robust),
+    # pruned to a horizon that covers the longest immobility window.
+    ctx.recent.append((now, lat, lon, body.get("accuracy_m")))
+    ctx.recent = [p for p in ctx.recent if (now - p[0]).total_seconds() <= 800]
+
     cfg   = _get_config()
     rules = _get_rules()
 
