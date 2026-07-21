@@ -85,6 +85,7 @@ def init_db():
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id      INTEGER REFERENCES sessions(id),
             ogn_beacon_id   INTEGER REFERENCES ogn_beacons(id),
+            user_id         INTEGER REFERENCES users(id),
             trigger         TEXT NOT NULL,
             ts              TEXT DEFAULT (datetime('now')),
             lat             REAL,
@@ -143,6 +144,13 @@ def init_db():
     """)
     con.commit()
 
+    # Migration: link an emergency directly to its user, so a manual SOS
+    # without an active session still carries the subject's identity.
+    cols = [r["name"] for r in con.execute("PRAGMA table_info(emergencies)").fetchall()]
+    if "user_id" not in cols:
+        con.execute("ALTER TABLE emergencies ADD COLUMN user_id INTEGER REFERENCES users(id)")
+        con.commit()
+
     _seed_config(con)
     _seed_rules(con)
     con.close()
@@ -158,6 +166,17 @@ def _seed_config(con):
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (key, value, tipo, macchina, categoria, descrizione))
+    # Message shown on the user's phone while an emergency is open (editable
+    # from the admin config panel; the app also caches it and has a fallback).
+    con.execute("""
+        INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        "emergency_user_message",
+        "Resta dove sei, i soccorsi sono in arrivo.",
+        "text", "APP", "app",
+        "Messaggio mostrato sul telefono durante un'emergenza in corso",
+    ))
     con.commit()
 
 
@@ -544,12 +563,12 @@ def update_ogn_state(ogn_id, state):
 
 # ── Emergencies ───────────────────────────────────────────────────────────────
 
-def create_emergency(trigger, lat, lon, alt_m=None, session_id=None, ogn_beacon_id=None, note=None):
+def create_emergency(trigger, lat, lon, alt_m=None, session_id=None, ogn_beacon_id=None, note=None, user_id=None):
     con = _conn()
     cur = con.execute("""
-        INSERT INTO emergencies (session_id, ogn_beacon_id, trigger, lat, lon, alt_m, note)
-        VALUES (?,?,?,?,?,?,?)
-    """, (session_id, ogn_beacon_id, trigger, lat, lon, alt_m, note))
+        INSERT INTO emergencies (session_id, ogn_beacon_id, user_id, trigger, lat, lon, alt_m, note)
+        VALUES (?,?,?,?,?,?,?,?)
+    """, (session_id, ogn_beacon_id, user_id, trigger, lat, lon, alt_m, note))
     emergency_id = cur.lastrowid
     con.commit()
     con.close()
@@ -576,18 +595,19 @@ def get_open_emergencies():
     con = _conn()
     rows = con.execute("""
         SELECT e.*,
-               COALESCE(u.nome,               ou.nome)               AS nome,
-               COALESCE(u.cognome,            ou.cognome)            AS cognome,
-               COALESCE(u.telefono,           ou.telefono)           AS telefono,
-               COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
-               COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
-               COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
-               COALESCE(u.note_salute,        ou.note_salute)        AS note_salute,
-               COALESCE(u.lingua,             ou.lingua)             AS lingua,
+               COALESCE(du.nome,               u.nome,               ou.nome)               AS nome,
+               COALESCE(du.cognome,            u.cognome,            ou.cognome)            AS cognome,
+               COALESCE(du.telefono,           u.telefono,           ou.telefono)           AS telefono,
+               COALESCE(du.emergenza_contatto, u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
+               COALESCE(du.emergenza_telefono, u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
+               COALESCE(du.gruppo_sanguigno,   u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
+               COALESCE(du.note_salute,        u.note_salute,        ou.note_salute)        AS note_salute,
+               COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
                COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
                ob.ogn_id       AS ogn_id,
                ob.display_name AS ogn_name
         FROM emergencies e
+        LEFT JOIN users       du ON e.user_id       = du.id
         LEFT JOIN sessions    s  ON e.session_id    = s.id
         LEFT JOIN users       u  ON s.user_id       = u.id
         LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id = ob.id
@@ -600,25 +620,42 @@ def get_open_emergencies():
     return [dict(r) for r in rows]
 
 
+def get_open_emergency_for_user(user_id):
+    """The user's currently open emergency, if any — matched either directly
+    (manual SOS with user_id) or via one of their sessions. Lets the mobile app
+    know whether its emergency is still open so it can keep the red overlay up."""
+    con = _conn()
+    row = con.execute("""
+        SELECT e.* FROM emergencies e
+        LEFT JOIN sessions s ON e.session_id = s.id
+        WHERE e.resolved_at IS NULL AND (e.user_id = ? OR s.user_id = ?)
+        ORDER BY e.ts DESC
+        LIMIT 1
+    """, (user_id, user_id)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
 def get_emergency(eid):
     """One emergency with the full subject identity (both resolution paths)."""
     con = _conn()
     row = con.execute("""
         SELECT e.*,
-               COALESCE(u.nome,               ou.nome)               AS nome,
-               COALESCE(u.cognome,            ou.cognome)            AS cognome,
-               COALESCE(u.telefono,           ou.telefono)           AS telefono,
-               COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
-               COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
-               COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
-               COALESCE(u.note_salute,        ou.note_salute)        AS note_salute,
-               COALESCE(u.lingua,             ou.lingua)             AS lingua,
-               COALESCE(s.user_id,            d.owner_user_id)       AS subject_user_id,
+               COALESCE(du.nome,               u.nome,               ou.nome)               AS nome,
+               COALESCE(du.cognome,            u.cognome,            ou.cognome)            AS cognome,
+               COALESCE(du.telefono,           u.telefono,           ou.telefono)           AS telefono,
+               COALESCE(du.emergenza_contatto, u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
+               COALESCE(du.emergenza_telefono, u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
+               COALESCE(du.gruppo_sanguigno,   u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
+               COALESCE(du.note_salute,        u.note_salute,        ou.note_salute)        AS note_salute,
+               COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
+               COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
                COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
                ob.ogn_id       AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome
         FROM emergencies e
+        LEFT JOIN users       du ON e.user_id       = du.id
         LEFT JOIN sessions    s  ON e.session_id    = s.id
         LEFT JOIN users       u  ON s.user_id       = u.id
         LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id = ob.id
@@ -643,12 +680,13 @@ def get_all_emergencies():
                COALESCE(u.emergenza_contatto, ou.emergenza_contatto) AS emergenza_contatto,
                COALESCE(u.emergenza_telefono, ou.emergenza_telefono) AS emergenza_telefono,
                COALESCE(u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
-               COALESCE(s.user_id,            d.owner_user_id)       AS subject_user_id,
+               COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
                COALESCE(s.attivita, 'PARAGLIDER')                    AS attivita,
                ob.ogn_id       AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome
         FROM emergencies e
+        LEFT JOIN users       du ON e.user_id       = du.id
         LEFT JOIN sessions    s  ON e.session_id    = s.id
         LEFT JOIN users       u  ON s.user_id       = u.id
         LEFT JOIN ogn_beacons ob ON e.ogn_beacon_id = ob.id
@@ -706,6 +744,14 @@ def get_all_config():
     ).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+def get_config_value(key, default=None):
+    """Single config value by key, or the default if absent."""
+    con = _conn()
+    row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    con.close()
+    return row["value"] if row else default
 
 
 def set_config_value(key, value):

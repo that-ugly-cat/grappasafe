@@ -655,14 +655,40 @@ async def emergency_manual(request: Request):
             )
         _handle_emergency(session["id"], ctx, tracker, EmergencyTrigger.MANUAL, lat, lon, alt_m)
     else:
-        # Emergency without an active session (e.g. outside tracking)
+        # Emergency without an active session (e.g. outside tracking). Link it
+        # to the user directly so the subject identity (name, phone, blood type,
+        # emergency contact) is not lost when there is no session or OGN device.
         eid = db.create_emergency(
             trigger="MANUAL", lat=lat, lon=lon, alt_m=alt_m,
+            user_id=user["id"],
             note="Manual emergency without session",
         )
         notify_emergency(eid)
 
-    return JSONResponse({"ok": True})
+    msg = db.get_config_value("emergency_user_message", "Resta dove sei, i soccorsi sono in arrivo.")
+    return JSONResponse({"ok": True, "message": msg})
+
+
+@app.get("/api/emergency/status")
+async def api_emergency_status(request: Request):
+    """
+    Whether the current user has an open emergency, plus the message to show on
+    the phone. The app polls this to keep the red overlay up until the emergency
+    is resolved by an observer/admin.
+    """
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    em = db.get_open_emergency_for_user(user["id"])
+    msg = db.get_config_value("emergency_user_message", "Resta dove sei, i soccorsi sono in arrivo.")
+    if not em:
+        return JSONResponse({"active": False, "message": msg})
+    return JSONResponse({
+        "active": True,
+        "emergency_id": em["id"],
+        "since": em["ts"],
+        "message": msg,
+    })
 
 
 # ── Public shareable map ──────────────────────────────────────────────────────
@@ -714,7 +740,33 @@ async def api_me(request: Request):
         "nome":     user["nome"] or "",
         "cognome":  user["cognome"] or "",
         "is_admin": user.get("role") == "admin",
+        "telefono":           user.get("telefono") or "",
+        "gruppo_sanguigno":   user.get("gruppo_sanguigno") or "",
+        "emergenza_contatto": user.get("emergenza_contatto") or "",
+        "emergenza_telefono": user.get("emergenza_telefono") or "",
+        "note_salute":        user.get("note_salute") or "",
+        "lingua":             user.get("lingua") or "it",
     })
+
+
+@app.put("/api/me")
+async def api_update_me(request: Request):
+    """
+    Self-service profile update from the mobile app. Only the safe profile
+    fields are editable here — never username, password or role.
+    """
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    body = await request.json()
+    fields = {}
+    for k in ("nome", "cognome", "telefono", "gruppo_sanguigno",
+              "emergenza_contatto", "emergenza_telefono", "note_salute", "lingua"):
+        if k in body:
+            v = body[k]
+            fields[k] = v.strip() if isinstance(v, str) else v
+    db.update_user_profile(user["id"], **fields)
+    return JSONResponse({"ok": True})
 
 
 # ── Admin: users and config ──────────────────────────────────────────────────
