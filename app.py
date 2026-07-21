@@ -358,7 +358,7 @@ async def session_start(request: Request):
         return JSONResponse({"error": "not authenticated"}, status_code=401)
     body = await request.json()
     attivita = body.get("attivita")
-    valid = {"PARAGLIDER","HANGGLIDER","CYCLIST","CLIMBER","HIKER","RUNNER","OTHER_ON_GROUND"}
+    valid = {"PARAGLIDER","HANGGLIDER","GLIDER","CYCLIST","CLIMBER","HIKER","RUNNER","OTHER_ON_GROUND"}
     if attivita not in valid:
         raise HTTPException(400, f"attivita deve essere uno di: {valid}")
     existing = db.get_active_session(user["id"])
@@ -1186,7 +1186,18 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
         return redir
     if not note.strip():
         raise HTTPException(400, "La nota di risoluzione è obbligatoria")
+    em = db.get_emergency(eid)
     db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
+    # Resolving an emergency closes the subject's activity: the session stays
+    # alive (with GPS) during the emergency for the rescue, and is ended here.
+    subject_id = em.get("subject_user_id") if em else None
+    if subject_id:
+        active = db.get_active_session(subject_id)
+        if active:
+            db.end_session(active["id"])
+            with _trackers_lock:
+                _session_trackers.pop(active["id"], None)
+                _em_contexts.pop(active["id"], None)
     return RedirectResponse("/admin/emergencies", status_code=303)
 
 
