@@ -1261,12 +1261,13 @@ async def admin_tracks(request: Request):
     })
 
 
-@app.get("/admin/tracks/export.csv")
+@app.get("/admin/tracks/export.xlsx")
 async def admin_tracks_export(request: Request, app: str = "", ogn: str = "", cols: str = ""):
     _, redir = require_admin(request)
     if redir:
         return redir
-    import csv, io
+    import io
+    from openpyxl import Workbook
     app_ids = [int(x) for x in app.split(",") if x.strip().isdigit()]
     ogn_ids = [x for x in ogn.split(",") if x.strip()]
     chosen = [c for c in cols.split(",") if c in DATA_COLS] or list(DATA_COLS)
@@ -1282,21 +1283,27 @@ async def admin_tracks_export(request: Request, app: str = "", ogn: str = "", co
     ogn_name  = {o["ogn_id"]: _name(o["nome"], o["cognome"])
                  for o in db.get_all_ogn_summary()}
 
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(chosen)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "tracce"
+    ws.append(chosen)
     for sid in app_ids:
         for p in db.get_session_points(sid):
             row = dict(p)
             row.update(source="APP", subject=sid, nome=sess_name.get(sid, ""), ogn_id="")
-            w.writerow([row.get(c) for c in chosen])
+            ws.append([row.get(c) for c in chosen])
     for oid in ogn_ids:
         for b in db.get_ogn_points(oid):
             row = dict(b)
             row.update(source="OGN", subject=oid, nome=ogn_name.get(oid, ""), ogn_id=oid)
-            w.writerow([row.get(c) for c in chosen])
-    return Response(content=buf.getvalue(), media_type="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=grappasafe-tracks.csv"})
+            ws.append([row.get(c) for c in chosen])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=grappasafe-tracce.xlsx"},
+    )
 
 
 @app.post("/admin/emergency/{eid}/resolve")

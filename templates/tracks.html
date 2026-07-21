@@ -8,9 +8,11 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
     .topbar { background: #12122a; padding: .6rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2e2e4e; }
+    .topbar strong { font-size: 1.1rem; }
     .topbar a, .topbar button { color: #aaa; text-decoration: none; font-size: .9rem; background: none; border: none; cursor: pointer; }
     .topbar a:hover, .topbar button:hover { color: white; }
     .topbar a.active { color: #fff; font-weight: 600; }
+    .topbar .spacer { flex: 1; }
     .content { max-width: 1180px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
     h2 { font-size: 1.4rem; margin-bottom: .4rem; color: #ddd; }
     h3 { font-size: .95rem; color: #cbd; margin: 1.6rem 0 .6rem; }
@@ -33,6 +35,9 @@
     tr.none td { color: #666; }
     .who { font-weight: 600; color: #eee; }
     .muted { color: #777; font-size: .8rem; }
+    .tag { font-size: .68rem; font-weight: 700; padding: .1rem .45rem; border-radius: 4px; letter-spacing: .03em; }
+    .tag-app { background: #1a5a8a; color: #cfe6ff; }
+    .tag-ogn { background: #4a2a8a; color: #e0d0ff; }
     .empty { color: #666; padding: 1rem 0; }
     @media (max-width: 720px) {
       .content { margin: 1rem auto; padding: 0 .8rem 2rem; }
@@ -65,69 +70,63 @@
   </div>
 
   <div class="actions">
-    <button class="btn" id="export-btn" onclick="exportCsv()">Esporta CSV</button>
+    <button class="btn" id="export-btn" onclick="exportXlsx()">Esporta Excel</button>
+    <button class="btn btn-sec" onclick="toggleAll(true)">tutte</button>
+    <button class="btn btn-sec" onclick="toggleAll(false)">nessuna</button>
     <span class="count" id="count">0 selezionate</span>
   </div>
 
-  <h3>Sessioni app <button class="btn btn-sec" onclick="toggleAll('app-chk', true)">tutte</button> <button class="btn btn-sec" onclick="toggleAll('app-chk', false)">nessuna</button></h3>
   <div class="table-wrap">
   <table>
-    <thead><tr><th></th><th>Utente</th><th>Attività</th><th>Inizio</th><th>Fine</th><th>Punti</th></tr></thead>
+    <thead><tr><th></th><th>Sorgente</th><th>Soggetto</th><th>Dettaglio</th><th>Inizio</th><th>Fine</th><th>Punti</th></tr></thead>
     <tbody>
       {% for s in sessions %}
       <tr class="{{ 'none' if not s.points else '' }}">
-        <td class="sel"><input type="checkbox" class="app-chk" value="{{ s.id }}" onchange="updateCount()"></td>
-        <td data-label="Utente"><span class="who">{{ (s.nome ~ ' ' ~ s.cognome) if s.nome else (s.username or '—') }}</span></td>
-        <td data-label="Attività">{{ ACT.get(s.attivita, s.attivita) or '—' }}</td>
+        <td class="sel"><input type="checkbox" class="trk-chk" data-source="app" value="{{ s.id }}" onchange="updateCount()"></td>
+        <td data-label="Sorgente"><span class="tag tag-app">APP</span></td>
+        <td data-label="Soggetto"><span class="who">{{ (s.nome ~ ' ' ~ s.cognome) if s.nome else (s.username or '—') }}</span></td>
+        <td data-label="Dettaglio">{{ ACT.get(s.attivita, s.attivita) or '—' }}</td>
         <td data-label="Inizio">{{ (s.started_at | localtime) if s.started_at else '—' }}</td>
         <td data-label="Fine">{{ (s.ended_at | localtime) if s.ended_at else '—' }}</td>
         <td data-label="Punti">{{ s.points }}</td>
       </tr>
       {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% if not sessions %}<div class="empty">Nessuna sessione app.</div>{% endif %}
-
-  <h3>Tracce OGN <button class="btn btn-sec" onclick="toggleAll('ogn-chk', true)">tutte</button> <button class="btn btn-sec" onclick="toggleAll('ogn-chk', false)">nessuna</button></h3>
-  <div class="table-wrap">
-  <table>
-    <thead><tr><th></th><th>Device</th><th>Codice OGN</th><th>Proprietario</th><th>Punti</th><th>Primo</th><th>Ultimo</th></tr></thead>
-    <tbody>
       {% for o in ogn %}
       <tr class="{{ 'none' if not o.points else '' }}">
-        <td class="sel"><input type="checkbox" class="ogn-chk" value="{{ o.ogn_id }}" onchange="updateCount()"></td>
-        <td data-label="Device"><span class="who">{{ o.display_name or '—' }}</span></td>
-        <td data-label="Codice OGN"><span class="muted">{{ o.ogn_id }}</span></td>
-        <td data-label="Proprietario">{{ (o.nome ~ ' ' ~ o.cognome) if o.nome else '—' }}</td>
+        <td class="sel"><input type="checkbox" class="trk-chk" data-source="ogn" value="{{ o.ogn_id }}" onchange="updateCount()"></td>
+        <td data-label="Sorgente"><span class="tag tag-ogn">OGN</span></td>
+        <td data-label="Soggetto"><span class="who">{{ (o.nome ~ ' ' ~ o.cognome) if o.nome else '—' }}</span></td>
+        <td data-label="Dettaglio">{{ o.display_name or '—' }} <span class="muted">{{ o.ogn_id }}</span></td>
+        <td data-label="Inizio">{{ (o.first_ts | localtime) if o.first_ts else '—' }}</td>
+        <td data-label="Fine">{{ (o.last_ts | localtime) if o.last_ts else '—' }}</td>
         <td data-label="Punti">{{ o.points }}</td>
-        <td data-label="Primo">{{ (o.first_ts | localtime) if o.first_ts else '—' }}</td>
-        <td data-label="Ultimo">{{ (o.last_ts | localtime) if o.last_ts else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  {% if not ogn %}<div class="empty">Nessuna traccia OGN.</div>{% endif %}
+  {% if not sessions and not ogn %}<div class="empty">Nessuna traccia registrata.</div>{% endif %}
 </div>
 
 <script>
-function sel(cls) { return [...document.querySelectorAll('.' + cls + ':checked')].map(c => c.value); }
-function selectedCols() { return sel('col-chk'); }
+function selSource(src) {
+  return [...document.querySelectorAll('.trk-chk[data-source="' + src + '"]:checked')].map(c => c.value);
+}
+function selectedCols() { return [...document.querySelectorAll('.col-chk:checked')].map(c => c.value); }
 function updateCount() {
-  const n = sel('app-chk').length + sel('ogn-chk').length;
+  const n = document.querySelectorAll('.trk-chk:checked').length;
   document.getElementById('count').textContent = n + ' selezionate';
   document.getElementById('export-btn').disabled = n === 0;
 }
-function toggleAll(cls, on) {
-  document.querySelectorAll('.' + cls).forEach(c => c.checked = on);
+function toggleAll(on) {
+  document.querySelectorAll('.trk-chk').forEach(c => c.checked = on);
   updateCount();
 }
-function exportCsv() {
-  const app = sel('app-chk'), ogn = sel('ogn-chk');
+function exportXlsx() {
+  const app = selSource('app'), ogn = selSource('ogn');
   if (!app.length && !ogn.length) return;
   const cols = selectedCols();
-  window.location = `/admin/tracks/export.csv?app=${app.join(',')}&ogn=${encodeURIComponent(ogn.join(','))}&cols=${cols.join(',')}`;
+  window.location = `/admin/tracks/export.xlsx?app=${app.join(',')}&ogn=${encodeURIComponent(ogn.join(','))}&cols=${cols.join(',')}`;
 }
 updateCount();
 </script>
