@@ -18,9 +18,7 @@
     <hr style="margin:1.2rem 0">
     <label>{{ t('profile.language') }}
       <select name="lingua">
-        <option value="it" {% if user.lingua == 'it' %}selected{% endif %}>Italiano</option>
-        <option value="en" {% if user.lingua == 'en' %}selected{% endif %}>English</option>
-        <option value="de" {% if user.lingua == 'de' %}selected{% endif %}>Deutsch</option>
+        {% for l in web_langs %}<option value="{{ l }}" {% if user.lingua == l %}selected{% endif %}>{{ web_lang_names[l] }}</option>{% endfor %}
       </select>
     </label>
     <button type="submit" class="btn btn-primary" style="margin-top:1.2rem">{{ t('common.save') }}</button>
