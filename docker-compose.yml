@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/data
+      - ./map_tiles:/app/map_tiles   # tile OpenTopoMap offline, servite su /map-tiles
     environment:
       - GRAPPASAFE_DB=/data/grappasafe.db
     env_file:

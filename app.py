@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
 from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
-from core.config import SECRET_KEY
+from core.config import SECRET_KEY, AREA_LAT, AREA_LON, AREA_RADIUS_KM
 from core.notify import notify_emergency
 from core.ogn import ogn_worker
 from core.state_machine import SessionTracker, update_sm
@@ -93,6 +93,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# Offline map tiles for the mobile app. Fetched once with fetch_map_tiles.py
+# and served from a host volume (see docker-compose). check_dir=False so the
+# app still boots before the tiles have been fetched.
+app.mount("/map-tiles", StaticFiles(directory="map_tiles", check_dir=False), name="map_tiles")
 templates = Jinja2Templates(directory="templates")
 
 # Timestamps are stored in UTC; display them in Rome local time. Europe/Rome
@@ -202,6 +206,22 @@ async def api_register(request: Request):
     )
     request.session["user"] = {"id": uid}
     return JSONResponse({"ok": True, "id": uid})
+
+
+@app.get("/api/config")
+async def api_config(request: Request):
+    """
+    Client configuration for the mobile app: the monitoring area
+    (centre + radius). Values follow the server env, so the app never
+    hard-codes them and stays in sync if the area changes.
+    """
+    if not get_current_user(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return JSONResponse({
+        "area_lat": AREA_LAT,
+        "area_lon": AREA_LON,
+        "area_radius_km": AREA_RADIUS_KM,
+    })
 
 
 @app.post("/logout")

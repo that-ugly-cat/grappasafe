@@ -12,6 +12,9 @@ __pycache__/
 # SRTM elevation tiles (fetched with fetch_tiles.sh, ~52 MB, not versioned)
 tiles/*.hgt
 
+# OpenTopoMap raster tiles (fetched with fetch_map_tiles.py, ~350 MB, not versioned)
+map_tiles/
+
 # Runtime data volume
 data/
 
