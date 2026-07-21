@@ -263,6 +263,91 @@ async def api_register(request: Request):
     return JSONResponse({"ok": True, "id": uid})
 
 
+# Fields a partner site (e.g. the fly-card portal) may pre-fill via query
+# string on /register. Everything is optional and fully editable by the user;
+# unknown params are ignored, missing ones just stay blank. Password is never
+# accepted this way.
+_PREFILL_FIELDS = [
+    "username", "nome", "cognome", "telefono",
+    "emergenza_contatto", "emergenza_telefono",
+    "gruppo_sanguigno", "note_salute", "lingua",
+    "ogn_id", "device_name",
+]
+
+
+def _register_prefill(request: Request) -> dict:
+    q = request.query_params
+    data = {k: (q.get(k) or "").strip() for k in _PREFILL_FIELDS}
+    if data["lingua"] not in webi18n.LANGS:
+        data["lingua"] = ""   # let the form fall back to its default
+    return data
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_get(request: Request):
+    """Public web registration. Optional query params pre-fill the form so a
+    partner site can hand off what it has (see _PREFILL_FIELDS)."""
+    user = get_current_user(request)
+    if user:
+        return RedirectResponse(_home_for(user), status_code=303)
+    return templates.TemplateResponse(request, "register.html",
+                                      {"form": _register_prefill(request)})
+
+
+@app.post("/register")
+async def register_post(
+    request: Request,
+    username: str = Form(""), password: str = Form(""),
+    nome: str = Form(""), cognome: str = Form(""),
+    telefono: str = Form(""),
+    emergenza_contatto: str = Form(""), emergenza_telefono: str = Form(""),
+    gruppo_sanguigno: str = Form(""), note_salute: str = Form(""),
+    lingua: str = Form("it"),
+    ogn_id: str = Form(""), device_name: str = Form(""),
+):
+    username = username.strip(); nome = nome.strip(); cognome = cognome.strip()
+    # Keep the submitted values to repopulate the form on error.
+    form = {
+        "username": username, "nome": nome, "cognome": cognome,
+        "telefono": telefono.strip(),
+        "emergenza_contatto": emergenza_contatto.strip(),
+        "emergenza_telefono": emergenza_telefono.strip(),
+        "gruppo_sanguigno": gruppo_sanguigno.strip(),
+        "note_salute": note_salute.strip(),
+        "lingua": lingua if lingua in webi18n.LANGS else "",
+        "ogn_id": ogn_id.strip(), "device_name": device_name.strip(),
+    }
+
+    error = None
+    if not username or not password or not nome or not cognome:
+        error = "Username, password, nome e cognome sono obbligatori"
+    elif len(password) < 6:
+        error = "La password deve avere almeno 6 caratteri"
+    elif db.get_user_by_username(username):
+        error = "Username già esistente"
+
+    if error:
+        return templates.TemplateResponse(
+            request, "register.html", {"form": form, "error": error}, status_code=400)
+
+    uid = db.create_user(
+        username, hash_password(password), nome, cognome,
+        role="user",  # forced: public registration never grants elevated roles
+        telefono=form["telefono"] or None,
+        emergenza_contatto=form["emergenza_contatto"] or None,
+        emergenza_telefono=form["emergenza_telefono"] or None,
+        gruppo_sanguigno=form["gruppo_sanguigno"] or None,
+        note_salute=form["note_salute"] or None,
+        lingua=lingua if lingua in webi18n.LANGS else "it",
+    )
+    # Optional OGN/FLARM device handed off from the partner site (or typed in).
+    if form["ogn_id"]:
+        db.add_device(uid, form["device_name"] or "FLARM/OGN", ogn_id=form["ogn_id"])
+
+    request.session["user"] = {"id": uid}
+    return RedirectResponse("/me", status_code=303)
+
+
 @app.get("/api/config")
 async def api_config(request: Request):
     """

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block nav %}{% endblock %}
+{% block title %}Registrazione — GrappaSafe{% endblock %}
+{% block content %}
+<style>
+  .reg { max-width: 640px; margin: 0 auto; }
+  .reg .hero { display: flex; align-items: center; gap: 1rem; margin: 1.2rem 0 .4rem; }
+  .reg .hero img { height: 46px; background: #fff; border-radius: 8px; padding: 4px 8px; }
+  .reg .hero h1 { font-size: 1.7rem; color: #1a1a2e; }
+  .reg .lead { color: #555; font-size: .95rem; line-height: 1.5; margin: .2rem 0 1.4rem; }
+  .reg h4 { color: #1a1a2e; font-size: .95rem; margin: 1.3rem 0 .2rem; }
+  .reg .hint { color: #888; font-size: .82rem; margin-top: .15rem; line-height: 1.4; }
+  .reg .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1rem; }
+  @media (max-width: 520px) { .reg .grid2 { grid-template-columns: 1fr; } }
+  .reg .error { background: #fdecea; border: 1px solid #f5c6cb; color: #a3282f; padding: .6rem .8rem; border-radius: 6px; margin-bottom: 1rem; font-size: .92rem; }
+  .reg details > summary { cursor: pointer; color: #1a6a8a; font-size: .92rem; font-weight: 500; margin-top: .4rem; }
+  .reg .actions { margin-top: 1.4rem; display: flex; align-items: center; gap: 1rem; }
+  .reg .login-link { margin-top: 1rem; font-size: .9rem; color: #666; }
+  .reg .login-link a { color: #1a6a8a; }
+</style>
+
+<div class="reg">
+  <div class="hero">
+    <img src="/static/logo-consorzio.png" alt="Vivere il Grappa">
+    <div>
+      <h1>Registrati a GrappaSafe</h1>
+    </div>
+  </div>
+  <p class="lead">
+    Crea il tuo account. I dati d'emergenza e medici sono facoltativi ma
+    fortemente consigliati: sono ciò che i soccorritori vedono subito se qualcosa
+    va storto. Puoi aggiornarli in ogni momento dal tuo profilo.
+  </p>
+
+  <div class="card">
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/register">
+
+      <h4>Accesso</h4>
+      <div class="grid2">
+        <label>Username <input type="text" name="username" value="{{ form.username }}" required autofocus></label>
+        <label>Password <input type="password" name="password" required></label>
+      </div>
+      <p class="hint">La password deve avere almeno 6 caratteri.</p>
+
+      <h4>Dati personali</h4>
+      <div class="grid2">
+        <label>Nome <input type="text" name="nome" value="{{ form.nome }}" required></label>
+        <label>Cognome <input type="text" name="cognome" value="{{ form.cognome }}" required></label>
+      </div>
+      <label>Telefono <input type="tel" name="telefono" value="{{ form.telefono }}"></label>
+
+      <h4>Contatto d'emergenza</h4>
+      <div class="grid2">
+        <label>Nome contatto <input type="text" name="emergenza_contatto" value="{{ form.emergenza_contatto }}"></label>
+        <label>Telefono contatto <input type="tel" name="emergenza_telefono" value="{{ form.emergenza_telefono }}"></label>
+      </div>
+
+      <h4>Dati medici <span class="hint" style="font-weight:400">(visibili ai soccorritori)</span></h4>
+      <label>Gruppo sanguigno <input type="text" name="gruppo_sanguigno" value="{{ form.gruppo_sanguigno }}" placeholder="es. A+"></label>
+      <label>Note salute <textarea name="note_salute" rows="2" placeholder="Allergie, farmaci, patologie rilevanti">{{ form.note_salute }}</textarea></label>
+
+      <h4>Lingua preferita</h4>
+      <label>
+        <select name="lingua">
+          {% set curlang = form.lingua or 'it' %}
+          {% for code, name in [('it','Italiano'),('en','English'),('de','Deutsch'),('fr','Français'),('pl','Polski'),('nl','Nederlands'),('es','Español'),('cs','Čeština')] %}
+          <option value="{{ code }}" {% if curlang == code %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <details {% if form.ogn_id %}open{% endif %}>
+        <summary>Ho un tracker FLARM / OGN (opzionale)</summary>
+        <p class="hint" style="margin:.5rem 0">
+          Solo se voli con parapendio/deltaplano e hai un tracker a bordo:
+          così il sistema ti riconosce anche quando sei tracciato solo dall'OGN.
+        </p>
+        <div class="grid2">
+          <label>Nome del device <input type="text" name="device_name" value="{{ form.device_name }}" placeholder="es. Vela rossa, Ozone Rush"></label>
+          <label>OGN / FLARM ID <input type="text" name="ogn_id" value="{{ form.ogn_id }}" placeholder="es. DDA123"></label>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Crea account</button>
+      </div>
+    </form>
+    <p class="login-link">Hai già un account? <a href="/">Accedi</a></p>
+  </div>
+</div>
+{% endblock %}
