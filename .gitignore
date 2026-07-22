@@ -15,10 +15,6 @@ tiles/*.hgt
 # OpenTopoMap raster tiles (fetched with fetch_map_tiles.py, ~350 MB, not versioned)
 map_tiles/
 
-# Vector tiles (built with build_vector_tiles.sh) + its scratch dir, not versioned
-vector_tiles/
-vector_build/
-
 # Runtime data volume
 data/
 

@@ -7,8 +7,6 @@ httpx
 python-dotenv
 python-multipart
 jinja2
-json5
-pillow
 openpyxl
 ogn-client==2.0.0
 ogn-parser==0.3.15
