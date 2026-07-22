@@ -36,7 +36,7 @@ AREA_PBF="$WORK/area.osm.pbf"
 MBTILES="$OUT/area.mbtiles"
 
 # --- 0. Preflight -------------------------------------------------------------
-for tool in tilemaker osmium wget git python3; do
+for tool in tilemaker osmium wget python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "MANCA: $tool — installalo prima."; exit 1; }
 done
 
@@ -44,34 +44,46 @@ done
 # Riusa core.config (AREA_LAT/LON) così resta in sync col resto del server.
 # BOX_HALF_KM = mezzo lato del quadrato vettoriale (27.5 -> lato 55 km): margine
 # ~8.5 km oltre il cerchio (raggio 19), così il giunto raster/vettoriale è lontano.
-read -r WEST SOUTH EAST NORTH <<EOF
-$(BOX_HALF_KM="${BOX_HALF_KM:-27.5}" python3 - <<'PY'
+BBOX="$(BOX_HALF_KM="${BOX_HALF_KM:-27.5}" python3 -c '
 import math, os
 from core.config import AREA_LAT, AREA_LON
 half = float(os.environ["BOX_HALF_KM"])
 dlat = half / 111.0
 dlon = half / (111.0 * math.cos(math.radians(AREA_LAT)))
 print(f"{AREA_LON-dlon:.6f} {AREA_LAT-dlat:.6f} {AREA_LON+dlon:.6f} {AREA_LAT+dlat:.6f}")
-PY
-)
-EOF
+')"
+[ -n "$BBOX" ] || { echo "ERRORE: calcolo bbox fallito (python3 / core.config non importabile?)."; exit 1; }
+read -r WEST SOUTH EAST NORTH <<< "$BBOX"
 echo "GrappaSafe — build tile vettoriali"
 echo "  bbox 55x55: W=$WEST S=$SOUTH E=$EAST N=$NORTH"
 
-# --- 2. Config Tilemaker di OpenTopoMap (schema Shortbread-OTM + stile) --------
-# Cloniamo shallow il repo OTM solo per prendere vector/tilemaker/*.
-OTM_DIR="$WORK/OpenTopoMap"
-if [ ! -d "$OTM_DIR/.git" ]; then
-  echo "  clono la config vettoriale di OpenTopoMap..."
-  git clone --depth 1 https://github.com/der-stefan/OpenTopoMap.git "$OTM_DIR"
-else
-  git -C "$OTM_DIR" pull --ff-only || true
-fi
-TM_DIR="$OTM_DIR/vector/tilemaker"
-TM_CONFIG="$TM_DIR/tilemaker-config-otm.json"
-TM_LUA="$TM_DIR/process-otm.lua"
-[ -f "$TM_CONFIG" ] && [ -f "$TM_LUA" ] || {
-  echo "Config OTM non trovata in $TM_DIR — struttura repo cambiata? Controlla."; exit 1; }
+# --- 2. Config Tilemaker di OpenTopoMap (schema Shortbread-OTM) ----------------
+# Scarico solo i due file (config + lua) da raw GitHub: niente clone del repo
+# intero (grosso). La config OTM referenzia 3 shapefile esterni (oceano/coste +
+# admin points) che qui NON servono: siamo inland (Grappa), quelle layer sarebbero
+# vuote e mancherebbero -> tilemaker fallirebbe all'avvio. Le rimuovo dalla config
+# così gira col solo .osm.pbf, senza scaricare ~1 GB di poligoni marini.
+TM_BASE="https://raw.githubusercontent.com/der-stefan/OpenTopoMap/master/vector/tilemaker"
+TM_LUA="$WORK/process-otm.lua"
+TM_CONFIG_ORIG="$WORK/tilemaker-config-otm.json"
+TM_CONFIG="$WORK/tilemaker-config-inland.json"
+echo "  scarico config Tilemaker OTM..."
+wget -qO "$TM_LUA"         "$TM_BASE/process-otm.lua"
+wget -qO "$TM_CONFIG_ORIG" "$TM_BASE/tilemaker-config-otm.json"
+[ -s "$TM_LUA" ] && [ -s "$TM_CONFIG_ORIG" ] || { echo "ERRORE: download config OTM fallito."; exit 1; }
+
+python3 - "$TM_CONFIG_ORIG" "$TM_CONFIG" <<'PY'
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+cfg = json.load(open(src))
+layers = cfg.get("layers", {})
+removed = [n for n, l in layers.items()
+           if isinstance(l, dict) and str(l.get("source", "")).endswith(".shp")]
+for n in removed:
+    del layers[n]
+json.dump(cfg, open(dst, "w"))
+print("  layer shapefile rimosse (inland):", ", ".join(removed) or "nessuna")
+PY
 
 # --- 3. Scarica l'estratto regionale (idempotente) ----------------------------
 if [ ! -f "$REGION_PBF" ]; then
