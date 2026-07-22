@@ -196,6 +196,15 @@ def _age(iso):
 templates.env.filters["age"] = _age
 
 
+def _valid_email(e) -> bool:
+    import re
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", (e or "").strip()))
+
+
+def _norm_email(e) -> str:
+    return (e or "").strip().lower()
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _home_for(user) -> str:
@@ -250,12 +259,15 @@ async def api_register(request: Request):
     password = body.get("password", "")
     nome     = body.get("nome", "").strip()
     cognome  = body.get("cognome", "").strip()
+    email    = _norm_email(body.get("email"))
 
-    if not username or not password or not nome or not cognome:
+    if not username or not password or not nome or not cognome or not email:
         return JSONResponse(
-            {"ok": False, "error": "Username, password, nome e cognome sono obbligatori"},
+            {"ok": False, "error": "Username, password, nome, cognome ed email sono obbligatori"},
             status_code=400,
         )
+    if not _valid_email(email):
+        return JSONResponse({"ok": False, "error": "Email non valida"}, status_code=400)
     if len(password) < 6:
         return JSONResponse(
             {"ok": False, "error": "La password deve avere almeno 6 caratteri"},
@@ -266,10 +278,16 @@ async def api_register(request: Request):
             {"ok": False, "error": "Username già esistente"},
             status_code=409,
         )
+    if db.get_user_by_email(email):
+        return JSONResponse(
+            {"ok": False, "error": "Email già registrata"},
+            status_code=409,
+        )
 
     uid = db.create_user(
         username, hash_password(password), nome, cognome,
         role="user",  # forced: public registration never grants elevated roles
+        email=email,
         telefono=body.get("telefono") or None,
         gruppo_sanguigno=body.get("gruppo_sanguigno") or None,
         emergenza_contatto=body.get("emergenza_contatto") or None,
@@ -287,7 +305,7 @@ async def api_register(request: Request):
 # unknown params are ignored, missing ones just stay blank. Password is never
 # accepted this way.
 _PREFILL_FIELDS = [
-    "username", "nome", "cognome", "telefono", "data_nascita",
+    "username", "nome", "cognome", "email", "telefono", "data_nascita",
     "emergenza_contatto", "emergenza_telefono",
     "gruppo_sanguigno", "note_salute", "lingua",
     "ogn_id", "device_name",
@@ -317,7 +335,7 @@ async def register_get(request: Request):
 async def register_post(
     request: Request,
     username: str = Form(""), password: str = Form(""),
-    nome: str = Form(""), cognome: str = Form(""),
+    nome: str = Form(""), cognome: str = Form(""), email: str = Form(""),
     telefono: str = Form(""), data_nascita: str = Form(""),
     emergenza_contatto: str = Form(""), emergenza_telefono: str = Form(""),
     gruppo_sanguigno: str = Form(""), note_salute: str = Form(""),
@@ -325,9 +343,10 @@ async def register_post(
     ogn_id: str = Form(""), device_name: str = Form(""),
 ):
     username = username.strip(); nome = nome.strip(); cognome = cognome.strip()
+    email = _norm_email(email)
     # Keep the submitted values to repopulate the form on error.
     form = {
-        "username": username, "nome": nome, "cognome": cognome,
+        "username": username, "nome": nome, "cognome": cognome, "email": email,
         "telefono": telefono.strip(), "data_nascita": data_nascita.strip(),
         "emergenza_contatto": emergenza_contatto.strip(),
         "emergenza_telefono": emergenza_telefono.strip(),
@@ -338,12 +357,16 @@ async def register_post(
     }
 
     error = None
-    if not username or not password or not nome or not cognome:
-        error = "Username, password, nome e cognome sono obbligatori"
+    if not username or not password or not nome or not cognome or not email:
+        error = "Username, password, nome, cognome ed email sono obbligatori"
+    elif not _valid_email(email):
+        error = "Email non valida"
     elif len(password) < 6:
         error = "La password deve avere almeno 6 caratteri"
     elif db.get_user_by_username(username):
         error = "Username già esistente"
+    elif db.get_user_by_email(email):
+        error = "Email già registrata — accedi o recupera la password"
 
     if error:
         return templates.TemplateResponse(
@@ -352,6 +375,7 @@ async def register_post(
     uid = db.create_user(
         username, hash_password(password), nome, cognome,
         role="user",  # forced: public registration never grants elevated roles
+        email=email,
         telefono=form["telefono"] or None,
         emergenza_contatto=form["emergenza_contatto"] or None,
         emergenza_telefono=form["emergenza_telefono"] or None,
@@ -511,7 +535,7 @@ async def profile_get(request: Request):
 @app.post("/profile")
 async def profile_post(
     request: Request,
-    nome: str = Form(...), cognome: str = Form(...),
+    nome: str = Form(...), cognome: str = Form(...), email: str = Form(""),
     telefono: str = Form(""), data_nascita: str = Form(""),
     emergenza_contatto: str = Form(""),
     emergenza_telefono: str = Form(""), gruppo_sanguigno: str = Form(""),
@@ -521,10 +545,29 @@ async def profile_post(
     user, redir = require_auth(request)
     if redir:
         return redir
+    email = _norm_email(email)
+    error = None
+    if not email or not _valid_email(email):
+        error = "Email non valida"
+    else:
+        other = db.get_user_by_email(email)
+        if other and other["id"] != user["id"]:
+            error = "Email già registrata da un altro account"
+    if error:
+        subject = db.get_user_by_id(user["id"]) or {}
+        subject.update(nome=nome, cognome=cognome, telefono=telefono,
+                       data_nascita=data_nascita, email=email,
+                       emergenza_contatto=emergenza_contatto,
+                       emergenza_telefono=emergenza_telefono,
+                       gruppo_sanguigno=gruppo_sanguigno,
+                       note_salute=note_salute, lingua=lingua)
+        return templates.TemplateResponse(
+            request, "profile.html",
+            {"user": subject, "error": error, **_web_i18n(request, user)}, status_code=400)
     db.update_user_profile(
         user["id"],
         nome=nome, cognome=cognome, telefono=telefono,
-        data_nascita=data_nascita,
+        data_nascita=data_nascita, email=email,
         emergenza_contatto=emergenza_contatto,
         emergenza_telefono=emergenza_telefono,
         gruppo_sanguigno=gruppo_sanguigno,
@@ -968,6 +1011,7 @@ async def api_me(request: Request):
         "emergenza_telefono": user.get("emergenza_telefono") or "",
         "note_salute":        user.get("note_salute") or "",
         "data_nascita":       user.get("data_nascita") or "",
+        "email":              user.get("email") or "",
         "lingua":             user.get("lingua") or "it",
     })
 
@@ -989,6 +1033,14 @@ async def api_update_me(request: Request):
         if k in body:
             v = body[k]
             fields[k] = v.strip() if isinstance(v, str) else v
+    if "email" in body:
+        email = _norm_email(body["email"])
+        if not email or not _valid_email(email):
+            return JSONResponse({"ok": False, "error": "Email non valida"}, status_code=400)
+        other = db.get_user_by_email(email)
+        if other and other["id"] != user["id"]:
+            return JSONResponse({"ok": False, "error": "Email già registrata"}, status_code=409)
+        fields["email"] = email
     db.update_user_profile(user["id"], **fields)
     return JSONResponse({"ok": True})
 

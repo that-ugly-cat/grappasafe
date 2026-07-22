@@ -201,6 +201,14 @@ def init_db():
     if "data_nascita" not in ucols:
         con.execute("ALTER TABLE users ADD COLUMN data_nascita TEXT")
         con.commit()
+    # Migration: email address. SQLite can't ADD COLUMN ... UNIQUE, so uniqueness
+    # is enforced by a partial unique index (only for non-null emails, leaving
+    # existing email-less accounts untouched).
+    if "email" not in ucols:
+        con.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email "
+                    "ON users(email COLLATE NOCASE) WHERE email IS NOT NULL")
+        con.commit()
 
     _seed_config(con)
     _seed_rules(con)
@@ -263,23 +271,27 @@ def _seed_rules(con):
 def create_user(username, password_hash, nome, cognome, **kwargs):
     con = _conn()
     token = str(uuid.uuid4())
-    cur = con.execute("""
-        INSERT INTO users (username, password_hash, nome, cognome,
-            telefono, emergenza_contatto, emergenza_telefono,
-            gruppo_sanguigno, note_salute, data_nascita, flarm_id, lingua, share_token, role)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (
-        username, password_hash, nome, cognome,
-        kwargs.get("telefono"), kwargs.get("emergenza_contatto"),
-        kwargs.get("emergenza_telefono"), kwargs.get("gruppo_sanguigno"),
-        kwargs.get("note_salute"), kwargs.get("data_nascita"), kwargs.get("flarm_id"),
-        kwargs.get("lingua", "it"), token,
-        kwargs.get("role", "user"),
-    ))
-    con.commit()
-    uid = cur.lastrowid
-    con.close()
-    return uid
+    email = kwargs.get("email")
+    email = email.strip().lower() if email else None
+    try:
+        cur = con.execute("""
+            INSERT INTO users (username, password_hash, nome, cognome,
+                telefono, emergenza_contatto, emergenza_telefono,
+                gruppo_sanguigno, note_salute, data_nascita, email, flarm_id, lingua, share_token, role)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            username, password_hash, nome, cognome,
+            kwargs.get("telefono"), kwargs.get("emergenza_contatto"),
+            kwargs.get("emergenza_telefono"), kwargs.get("gruppo_sanguigno"),
+            kwargs.get("note_salute"), kwargs.get("data_nascita"),
+            email, kwargs.get("flarm_id"),
+            kwargs.get("lingua", "it"), token,
+            kwargs.get("role", "user"),
+        ))
+        con.commit()
+        return cur.lastrowid
+    finally:
+        con.close()
 
 
 def get_user_by_username(username):
@@ -303,11 +315,24 @@ def get_user_by_share_token(token):
     return dict(row) if row else None
 
 
+def get_user_by_email(email):
+    """Case-insensitive lookup by email, for uniqueness checks and recovery."""
+    if not email:
+        return None
+    con = _conn()
+    row = con.execute("SELECT * FROM users WHERE email=? COLLATE NOCASE",
+                      (email.strip(),)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
 def update_user_profile(user_id, **fields):
     allowed = {"nome", "cognome", "telefono", "emergenza_contatto",
                "emergenza_telefono", "gruppo_sanguigno", "note_salute",
-               "data_nascita", "flarm_id", "lingua"}
+               "data_nascita", "email", "flarm_id", "lingua"}
     updates = {k: v for k, v in fields.items() if k in allowed}
+    if "email" in updates and updates["email"]:
+        updates["email"] = updates["email"].strip().lower()
     if not updates:
         return
     sets = ", ".join(f"{k}=?" for k in updates)

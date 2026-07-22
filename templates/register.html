@@ -39,9 +39,10 @@
       <h4>Accesso</h4>
       <div class="grid2">
         <label>Username <input type="text" name="username" value="{{ form.username }}" required autofocus></label>
-        <label>Password <input type="password" name="password" required></label>
+        <label>Email <input type="email" name="email" value="{{ form.email }}" required></label>
       </div>
-      <p class="hint">La password deve avere almeno 6 caratteri.</p>
+      <label>Password <input type="password" name="password" required></label>
+      <p class="hint">La password deve avere almeno 6 caratteri. L'email serve per il recupero password.</p>
 
       <h4>Dati personali</h4>
       <div class="grid2">
