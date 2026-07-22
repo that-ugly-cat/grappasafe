@@ -51,7 +51,7 @@
     <p>{% if reason == 'expired' %}Questo link di condivisione era valido 24 ore ed è scaduto. Chiedi un nuovo link a chi te l'ha inviato.{% else %}Il link non è corretto o è stato modificato.{% endif %}</p>
   </div>
 {% else %}
-{% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute di emergenza', 'AUTO_IMPACT': 'Impatto + immobile', 'AUTO_IMMOBILE': 'Immobilità prolungata'} %}
+{% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute di emergenza', 'SIGNAL_LOST': 'Segnale perso dopo discesa', 'AUTO_IMPACT': 'Impatto + immobile', 'AUTO_IMMOBILE': 'Immobilità prolungata'} %}
 {% set ACT = {'PARAGLIDER': 'Parapendio', 'HANGGLIDER': 'Deltaplano', 'CYCLIST': 'Ciclismo', 'CLIMBER': 'Arrampicata', 'HIKER': 'Escursionismo', 'RUNNER': 'Trail running', 'OTHER_ON_GROUND': 'Altro'} %}
 
 <div class="content">

@@ -19,8 +19,10 @@ from ogn.parser import parse
 import db as _db
 from core.config import APRS_USER, APRS_PASS, AREA_LAT, AREA_LON, AREA_RADIUS_KM
 from core.notify import notify_emergency
-from core.state_machine import OgnTracker, update_ogn_sm, FlightState
-from core.emergency import EmergencyTrigger, ogn_kind, rule_active
+from core.state_machine import OgnTracker, update_ogn_sm, FLIGHT_ACTIVITIES
+from core.emergency import (
+    EmergencyTrigger, ogn_kind, rule_active, ogn_chute_step, ogn_chute_signal_lost,
+)
 from core.terrain import compute_agl
 
 
@@ -116,6 +118,28 @@ def get_ogn_trackers() -> dict:
     return _ogn_trackers
 
 
+def _fire_ogn_emergency(ogn_id, display_name, kind, trigger, lat, lon, alt_m,
+                        beacon_id=None) -> bool:
+    """Open an OGN emergency (AUTO_CHUTE / SIGNAL_LOST) unless the rule is off or
+    the pilot already has one open. Returns True if we should stop watching this
+    tracker (fired, or deduped against an already-open emergency); False only if
+    the rule is disabled, so a later re-enable can still fire."""
+    if not rule_active(_db.load_em_rules(), trigger.value, kind):
+        print(f"  [OGN] {trigger.value} ignorato (regola off): {display_name} ({kind})")
+        return False
+    owner = _db.get_device_owner_id(ogn_id)
+    if owner and _db.get_open_emergency_for_user(owner):
+        print(f"  [OGN] {trigger.value} deduped (già aperta): {display_name}")
+        return True
+    eid = _db.create_emergency(
+        trigger=trigger.value, lat=lat, lon=lon, alt_m=alt_m,
+        ogn_beacon_id=beacon_id, user_id=owner, note=f"OGN: {display_name}",
+    )
+    notify_emergency(eid)
+    print(f"  [OGN] {trigger.value}: {display_name} ({kind})")
+    return True
+
+
 # ── Main worker ───────────────────────────────────────────────────────────────
 
 def ogn_worker(stop_flag) -> None:
@@ -129,6 +153,39 @@ def ogn_worker(stop_flag) -> None:
             _reload_ogn_cfg()
 
     threading.Thread(target=_config_reloader, daemon=True).start()
+
+    # Side thread: Path 2 — an armed reserve watch whose beacon went silent near
+    # the ground. Fires SIGNAL_LOST once the silence exceeds signal_lost_wait_s.
+    def _signal_lost_checker():
+        while not stop_flag.is_set():
+            stop_flag.wait(30)
+            if stop_flag.is_set():
+                break
+            cfg     = _get_ogn_cfg()
+            now_dt  = datetime.now(timezone.utc)
+            to_fire = []
+            with _trackers_lock:
+                for oid, tr in _ogn_trackers.items():
+                    if not tr.chute_watch or tr.chute_fired or tr.last_seen is None:
+                        continue
+                    if (now_dt - tr.last_seen).total_seconds() < cfg.signal_lost_wait_s:
+                        continue
+                    if ogn_chute_signal_lost(tr, now_dt, cfg):
+                        tr.chute_fired = True   # claim under the lock, fire below
+                        to_fire.append((oid, tr.display_name, tr.chute_kind,
+                                        tr.chute_last_lat, tr.chute_last_lon,
+                                        tr.chute_last_alt_amsl))
+                    else:
+                        tr.chute_watch = False  # lost high / unknown alt: accepted miss
+            for oid, name, kind, la, lo, amsl in to_fire:
+                if not _fire_ogn_emergency(oid, name, kind or "PARAGLIDER",
+                                           EmergencyTrigger.SIGNAL_LOST, la, lo, amsl):
+                    with _trackers_lock:   # rule off: release the claim
+                        t = _ogn_trackers.get(oid)
+                        if t:
+                            t.chute_fired = False
+
+    threading.Thread(target=_signal_lost_checker, daemon=True).start()
 
     while not stop_flag.is_set():
         client = AuthAprsClient(aprs_user=APRS_USER, aprs_pass=APRS_PASS, aprs_filter=aprs_filter)
@@ -191,33 +248,34 @@ def ogn_worker(stop_flag) -> None:
                 if ogn_id not in _ogn_trackers:
                     _ogn_trackers[ogn_id] = OgnTracker(ogn_id=ogn_id, display_name=display_name)
                 tracker = _ogn_trackers[ogn_id]
-                old_state = tracker.state
+                prev_seen = tracker.last_seen
 
             cfg = _get_ogn_cfg()
-            changed = update_ogn_sm(tracker, sm_beacon, cfg)
+            update_ogn_sm(tracker, sm_beacon, cfg)
             _db.update_ogn_state(ogn_id, tracker.state)
 
-            # OGN reserve-chute rule: DESCENDING_FAST -> LANDED. OGN can't confirm
-            # post-landing immobility (beacons usually stop), so it fires on the
-            # transition, gated by the rule being enabled for this aircraft type.
-            if changed and old_state == FlightState.DESCENDING_FAST and tracker.state == FlightState.LANDED:
-                kind = ogn_kind(aircraft_type)
-                if rule_active(_db.load_em_rules(), "AUTO_CHUTE", kind):
-                    owner = _db.get_device_owner_id(ogn_id)
-                    if owner and _db.get_open_emergency_for_user(owner):
-                        # Same pilot already has an open emergency (e.g. via the app).
-                        print(f"  [OGN] chute deduped (already open): {display_name}")
-                    else:
-                        eid = _db.create_emergency(
-                            trigger=EmergencyTrigger.AUTO_CHUTE.value,
-                            lat=lat, lon=lon, alt_m=alt_m,
-                            ogn_beacon_id=beacon_id, user_id=owner,
-                            note=f"OGN: {display_name}",
-                        )
-                        notify_emergency(eid)
-                        print(f"  [OGN] AUTO_CHUTE: {display_name} ({kind})")
-                else:
-                    print(f"  [OGN] chute landing ignored: {display_name} ({kind})")
+            # Reserve-chute watch (OGN, no accelerometer): arms on a sustained
+            # reserve-rate descent, fires here on immobility (Path 1). Path 2
+            # (signal lost near ground) is handled by the silence checker thread.
+            kind = ogn_kind(aircraft_type)
+            if kind in FLIGHT_ACTIVITIES:
+                now_dt = datetime.now(timezone.utc)
+                gap_s  = (now_dt - prev_seen).total_seconds() if prev_seen else None
+                sm_agl = sm_beacon.get("alt_m")
+                with _trackers_lock:
+                    tracker.chute_kind          = kind
+                    tracker.chute_last_lat      = lat
+                    tracker.chute_last_lon      = lon
+                    tracker.chute_last_alt_amsl = alt_m
+                    trig = ogn_chute_step(
+                        tracker, alt_agl=sm_agl, lat=lat, lon=lon,
+                        speed_kmh=speed_kmh or 0.0, vspeed_ms=vspeed_ms or 0.0,
+                        now=now_dt, cfg=cfg, gap_s=gap_s,
+                    )
+                if trig is not None and _fire_ogn_emergency(
+                        ogn_id, display_name, kind, trig, lat, lon, alt_m, beacon_id):
+                    with _trackers_lock:
+                        tracker.chute_fired = True
             else:
                 print(f"  [OGN] {display_name}: {tracker.state} "
                       f"alt={alt_m}m speed={speed_kmh}km/h vspeed={vspeed_ms}m/s")

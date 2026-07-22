@@ -29,13 +29,27 @@ Il cuore è diviso in due:
 Trigger d'emergenza:
 
 - **SOS manuale** — l'utente preme il pulsante nell'app. Scatta subito.
-- **Paracadute d'emergenza** — una discesa verticale rapida (`DESCENDING_FAST`) seguita da
-  atterraggio. Scatta subito.
+- **Paracadute d'emergenza** — una discesa **sostenuta a rateo-paracadute** (~5 m/s o più,
+  che *non rientra* in volo normale) seguita da **immobilità**: sceso col paracadute e poi
+  fermo, a terra o appeso. Non è più agganciato al raggiungere un atterraggio "pulito"
+  (lento + basso + stabile): un pilota trascinato dalla vela o impigliato non ci arriverebbe
+  mai, ed è proprio il caso che conta. Scatta subito.
+- **Segnale perso dopo discesa** — solo OGN. Il beacon FLARM di norma cessa prima del suolo,
+  quindi quando *non* possiamo confermare l'immobilità: una discesa a rateo-paracadute
+  seguita dalla perdita del beacon vicino a terra. Si aspetta una finestra breve (~2 min) un
+  ritorno del segnale; se resta muto e l'ultima quota era bassa, l'allarme parte. Distinto da
+  un atterraggio normale (non preceduto da una discesa anomala) e da un buco di copertura in
+  quota (l'ultima quota non è bassa).
 - **Impatto** — un picco di accelerazione forte seguito dallo stare fermi. Passa da una
   finestra di conferma: l'utente ha qualche minuto per annullare dal telefono prima che
   l'allarme parta.
 - **Immobilità prolungata** — fermo a lungo senza un impatto precedente. Stessa finestra di
   conferma; disattivata di default, perché una lunga sosta di solito è solo una sosta.
+
+La discesa a rateo-paracadute si arma solo se **sostenuta e non rientrata**: una tecnica di
+perdita rapida (orecchie + barra, B-stall, spirale intenzionale) ha lo stesso rateo ma
+*rientra* in volo normale prima di terra, e allora la vigilanza si disarma. È l'esito
+— immobilità o silenzio vicino a terra — a distinguere l'emergenza dalla manovra.
 
 Trasversale a tutti:
 
@@ -57,11 +71,15 @@ Le due sorgenti osservano cose diverse, quindi alzano allarmi diversi e si copro
   un controllo di immobilità post-atterraggio), impatto (accelerometro, in volo e a terra) e
   immobilità prolungata. La velocità verticale è derivata dalla quota GPS, quindi è rumorosa
   — non c'è barometro.
-- **OGN / FLARM (feed APRS).** Solo paracadute. Il FLARM dà una velocità verticale pulita,
-  quindi il rilevamento della discesa rapida è affidabile anche per una riserva morbida — ma
-  non c'è accelerometro (niente impatto) e i beacon di solito cessano a terra (nessun
-  controllo di immobilità, quindi il paracadute scatta sulla transizione
-  `DESCENDING_FAST → LANDED` stessa).
+- **OGN / FLARM (feed APRS).** Paracadute e segnale-perso. Il FLARM dà una velocità verticale
+  pulita, quindi la discesa a rateo-paracadute è affidabile anche per una riserva morbida
+  (~5-6 m/s, che il gate della discesa *rapida* a -8 m/s non prenderebbe). Riconosciuta la
+  discesa, l'emergenza si chiude in due modi: se i beacon proseguono — al Grappa se ne
+  ricevono anche da terra — e il soggetto resta immobile entro ~50 m → **paracadute**
+  confermato; se invece il beacon si perde vicino a terra → **segnale-perso** dopo l'attesa.
+  Non c'è accelerometro, quindi niente impatto: sui volatili l'OGN copre la discesa, l'app
+  copre l'urto. Resta un pavimento di copertura — una discesa che sparisce *in quota* in un
+  punto d'ombra non è distinguibile da un buco di segnale, e non allarma.
 - **App + OGN (stesso pilota, device abbinato all'account).** Girano entrambe le reti e si
   completano: la vspeed pulita dell'OGN prende una riserva morbida che il GPS rumoroso
   dell'app potrebbe perdere, l'accelerometro dell'app prende un impatto duro che l'OGN non
@@ -173,7 +191,8 @@ core/
   config.py         — configurazione da ambiente (area monitorata, segreti)
   state_machine.py  — macchina degli stati cinematica (volo + terra)
   emergency.py      — macchina delle emergenze, soglie, metadati di config
-  ogn.py            — worker OGN/APRS: filtro area, SM di volo, paracadute all'atterraggio
+  ogn.py            — worker OGN/APRS: filtro area, SM di volo, vigilanza paracadute
+                      (discesa a rateo-riserva → immobilità o segnale perso vicino a terra)
   terrain.py        — lettore tile SRTM1 per la quota sul suolo (AGL)
   notify.py         — notifiche Telegram + email
 webi18n.py          — traduzioni delle pagine web rivolte all'utente (/me, /profile)

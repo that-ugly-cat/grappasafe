@@ -1218,8 +1218,13 @@ _ALL_OPTS = _FLIGHT_OPTS + _GROUND_OPTS
 _RULE_UI = {
     "AUTO_CHUTE": {
         "title": "Paracadute di emergenza",
-        "desc": "Transizione <code>descending_fast → landed</code> seguita da immobilità: sceso col paracadute, atterrato e fermo.",
+        "desc": "Discesa sostenuta a rateo-paracadute seguita da immobilità (a terra o appeso): sceso col paracadute e fermo. App e OGN.",
         "activities": _FLIGHT_OPTS, "param_key": "chute_immobile_s", "param_label": "Immobile per",
+    },
+    "SIGNAL_LOST": {
+        "title": "Segnale perso dopo discesa",
+        "desc": "Solo OGN: discesa a rateo-paracadute seguita dalla perdita del beacon vicino a terra. Scatta dopo l'attesa di silenzio se l'ultima quota era bassa.",
+        "activities": _FLIGHT_OPTS, "param_key": "signal_lost_wait_s", "param_label": "Attesa silenzio",
     },
     "AUTO_IMPACT": {
         "title": "Impatto + immobile",
@@ -1232,7 +1237,7 @@ _RULE_UI = {
         "activities": _GROUND_OPTS, "param_key": "immobile_emergency_s", "param_label": "Fermo per",
     },
 }
-_RULE_ORDER = ["AUTO_CHUTE", "AUTO_IMPACT", "AUTO_IMMOBILE"]
+_RULE_ORDER = ["AUTO_CHUTE", "SIGNAL_LOST", "AUTO_IMPACT", "AUTO_IMMOBILE"]
 
 
 @app.get("/admin/emergency-settings", response_class=HTMLResponse)

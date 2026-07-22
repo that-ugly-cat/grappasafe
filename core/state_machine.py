@@ -17,7 +17,7 @@ Ground (CYCLIST, CLIMBER, HIKER, RUNNER, OTHER_ON_GROUND):
     IMPACT (transient, one tick, overrides any state)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
@@ -76,6 +76,19 @@ class OgnTracker:
     landing_since:   Optional[datetime] = None
     descending_since: Optional[datetime] = None
     linked_user_id:  Optional[int] = None
+
+    # Reserve-chute watch (OGN, no accelerometer). Managed by ogn_chute_step in
+    # core/emergency.py; the SM never reads or writes these.
+    chute_watch:        bool               = False  # armed: sustained reserve-rate descent
+    chute_fired:        bool               = False  # emergency already opened, don't re-fire
+    chute_arm_since:    Optional[datetime] = None   # arming streak start
+    chute_recover_since: Optional[datetime] = None  # recovery-to-flight streak start
+    chute_last_agl:     Optional[float]    = None   # last AGL while watching (Path 2 floor)
+    chute_last_lat:     Optional[float]    = None   # last position, for the SIGNAL_LOST record
+    chute_last_lon:     Optional[float]    = None
+    chute_last_alt_amsl: Optional[float]   = None
+    chute_kind:         Optional[str]      = None   # PARAGLIDER | HANGGLIDER (for rule scope)
+    chute_recent:       list               = field(default_factory=list)  # (ts, lat, lon)
 
 
 def _reset_streaks(tracker) -> None:

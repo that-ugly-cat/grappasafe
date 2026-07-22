@@ -20,6 +20,7 @@ import db as _db
 _TRIG = {
     "MANUAL":        "SOS manuale",
     "AUTO_CHUTE":    "Paracadute di emergenza",
+    "SIGNAL_LOST":   "Segnale perso dopo discesa",
     "AUTO_IMPACT":   "Impatto + immobile",
     "AUTO_IMMOBILE": "Immobilità prolungata",
 }

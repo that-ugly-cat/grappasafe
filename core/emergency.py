@@ -20,7 +20,8 @@ from core.state_machine import (
 
 class EmergencyTrigger(str, Enum):
     MANUAL        = "MANUAL"         # manual SOS from the app
-    AUTO_CHUTE    = "AUTO_CHUTE"     # landed under reserve chute, then immobile
+    AUTO_CHUTE    = "AUTO_CHUTE"     # reserve-rate descent, then immobile (ground or treed)
+    SIGNAL_LOST   = "SIGNAL_LOST"    # OGN: reserve-rate descent, then beacon lost near ground
     AUTO_IMPACT   = "AUTO_IMPACT"    # impact followed by a long stop
     AUTO_IMMOBILE = "AUTO_IMMOBILE"  # motionless for a long time, no impact
 
@@ -76,9 +77,26 @@ class EmConfig:
     impact_recovery_s:    float = 120.0  # motionless after impact -> AUTO_IMPACT
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
 
-    # Reserve-chute rule: after DESCENDING_FAST -> LANDED, the pilot must stay
-    # immobile (speed <= landing_speed_kmh) this long to confirm the emergency.
+    # Reserve-chute immobility window (displacement-based). Confirms the chute
+    # emergency once the pilot has stayed within immobile_radius_m this long.
+    # Shared by the app path (after DESCENDING_FAST -> LANDED) and the OGN Path 1
+    # (after a sustained reserve-rate descent).
     chute_immobile_s:     float = 120.0
+
+    # OGN reserve-chute detection (no accelerometer). A reserve canopy comes down
+    # at ~5-6 m/s, below the SM's DESCENDING_FAST gate (-8): detect it directly on
+    # the clean FLARM vspeed. Arms on a *sustained* descent that does not recover
+    # to normal flight (a B-stall / intentional spiral has the same rate but flies
+    # back out).
+    chute_arm_vspeed_ms:     float = -5.0   # vspeed at/below this suspects a reserve
+    chute_recover_vspeed_ms: float = -2.0   # vspeed above this = back to normal flight
+    chute_confirm_s:         float = 8.0    # seconds at reserve rate to arm (or to recover)
+
+    # OGN Path 2 — signal lost. After a reserve descent the beacon usually stops
+    # near the ground; if it stays silent this long and the last altitude was low,
+    # open the emergency without an immobility confirmation.
+    signal_lost_wait_s:      float = 120.0  # OGN silence after a reserve descent -> alarm
+    signal_lost_floor_agl_m: float = 50.0   # last AGL must be at/below this to alarm on silence
 
     # Confirmation window for AUTO_IMPACT / AUTO_IMMOBILE only. After detection
     # the user has this long to answer from the phone; otherwise the emergency
@@ -268,6 +286,108 @@ def _eval_ground(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> O
     return None
 
 
+# ── OGN reserve-chute watch (no accelerometer) ────────────────────────────────
+# The OGN feed has no impact signal, and the FLARM beacon usually stops before
+# touchdown, so we can't watch for a clean LANDED state. Instead we arm on a
+# sustained reserve-rate descent and then wait for one of two outcomes:
+#   Path 1 — beacons keep coming and the pilot is immobile (ground or treed);
+#   Path 2 — the beacon is lost near the ground (handled by the silence checker).
+# State lives on the OgnTracker (chute_* fields).
+
+def _tracker_immobile(recent, window_s, cfg: EmConfig, now: datetime) -> bool:
+    """True if the tracker stayed within immobile_radius_m over the last window_s.
+
+    Like _is_immobile but for OGN points, which carry no accuracy figure. Needs
+    at least two points covering most of the window — otherwise we can't yet
+    claim immobility for that long."""
+    pts = [(t, la, lo) for (t, la, lo) in recent if (now - t).total_seconds() <= window_s]
+    if len(pts) < 2:
+        return False
+    oldest = min(t for t, _, _ in pts)
+    if (now - oldest).total_seconds() < window_s * 0.8:
+        return False
+    _, la0, lo0 = min(pts, key=lambda p: p[0])
+    return all(_haversine_m(la0, lo0, la, lo) <= cfg.immobile_radius_m
+               for _, la, lo in pts)
+
+
+def ogn_chute_step(tracker, alt_agl, lat, lon, speed_kmh, vspeed_ms,
+                   now: datetime, cfg: EmConfig, gap_s=None) -> Optional[EmergencyTrigger]:
+    """Feed one OGN beacon into the reserve-chute watch. Returns AUTO_CHUTE if
+    Path 1 (immobility) fires on this beacon, otherwise None.
+
+    Arms on a descent at/below chute_arm_vspeed_ms (horizontal speed under the
+    aircraft cap) sustained for chute_confirm_s. A recovery to normal flight —
+    vspeed above chute_recover_vspeed_ms *and* still moving at flight speed
+    (>= takeoff_speed_kmh), sustained — disarms it: that is what tells a reserve
+    apart from a B-stall or an intentional spiral that flies back out. The speed
+    condition matters because a landed, immobile pilot also has vspeed ~0; we must
+    not read a landing as a recovery, or Path 1 would never fire. Once armed,
+    fires as soon as the pilot is immobile within immobile_radius_m for
+    chute_immobile_s, at any altitude (a tree hang-up counts)."""
+    # A long gap invalidates the in-progress streaks and the immobility buffer,
+    # but never disarms an active watch — the silence itself is Path 2's signal.
+    if gap_s is not None and gap_s > cfg.max_gap_s:
+        tracker.chute_arm_since = None
+        tracker.chute_recover_since = None
+        tracker.chute_recent = []
+
+    if alt_agl is not None:
+        tracker.chute_last_agl = alt_agl
+    if lat is not None and lon is not None:
+        tracker.chute_recent.append((now, lat, lon))
+        tracker.chute_recent = [p for p in tracker.chute_recent
+                                if (now - p[0]).total_seconds() <= cfg.chute_immobile_s]
+
+    descending = (vspeed_ms <= cfg.chute_arm_vspeed_ms
+                  and speed_kmh <= cfg.descending_max_speed_kmh)
+
+    if not tracker.chute_watch:
+        if descending:
+            if tracker.chute_arm_since is None:
+                tracker.chute_arm_since = now
+            elif (now - tracker.chute_arm_since).total_seconds() >= cfg.chute_confirm_s:
+                tracker.chute_watch = True
+                tracker.chute_arm_since = None
+        else:
+            tracker.chute_arm_since = None
+        return None
+
+    # Armed. Recovery to normal flight disarms (technique that flies back out).
+    # Requires both non-descending vspeed AND flight-speed movement, so that a
+    # landed immobile pilot (vspeed ~0, speed ~0) is NOT mistaken for a recovery.
+    if vspeed_ms >= cfg.chute_recover_vspeed_ms and speed_kmh >= cfg.takeoff_speed_kmh:
+        if tracker.chute_recover_since is None:
+            tracker.chute_recover_since = now
+        elif (now - tracker.chute_recover_since).total_seconds() >= cfg.chute_confirm_s:
+            tracker.chute_watch = False
+            tracker.chute_recover_since = None
+            tracker.chute_recent = []
+            return None
+    else:
+        tracker.chute_recover_since = None
+
+    # Path 1: immobile within the radius over the window (ground or treed).
+    if not tracker.chute_fired and _tracker_immobile(tracker.chute_recent, cfg.chute_immobile_s, cfg, now):
+        return EmergencyTrigger.AUTO_CHUTE
+    return None
+
+
+def ogn_chute_signal_lost(tracker, now: datetime, cfg: EmConfig) -> bool:
+    """True if an armed watch should fire SIGNAL_LOST (Path 2): the beacon has
+    been silent for signal_lost_wait_s and the last known altitude was at/below
+    signal_lost_floor_agl_m. A descent that vanished high up is an accepted miss
+    (indistinguishable from a coverage gap) and returns False."""
+    if not tracker.chute_watch or tracker.chute_fired:
+        return False
+    if tracker.last_seen is None:
+        return False
+    if (now - tracker.last_seen).total_seconds() < cfg.signal_lost_wait_s:
+        return False
+    agl = tracker.chute_last_agl
+    return agl is not None and agl <= cfg.signal_lost_floor_agl_m
+
+
 # Default config, used when the DB is not reachable.
 DEFAULT_CONFIG = EmConfig()
 
@@ -307,7 +427,12 @@ CONFIG_META = [
     ("ogn_flight_gap_min", "SM", "sistema", "Minuti di silenzio OGN che separano due voli (traccia/barogramma)",      "float"),
 
     # Emergency machine — flight rules
-    ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo atterraggio col paracadute → emergenza", "float"),
+    ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo la discesa col paracadute → emergenza (app e OGN)", "float"),
+    ("chute_arm_vspeed_ms",     "EM", "volo", "Velocità verticale soglia discesa paracadute OGN (m/s, negativo)", "float"),
+    ("chute_recover_vspeed_ms", "EM", "volo", "Velocità verticale sopra cui la discesa è rientrata in volo (m/s, negativo)", "float"),
+    ("chute_confirm_s",         "EM", "volo", "Secondi a rateo-paracadute per armare la vigilanza (e per rientrare)", "float"),
+    ("signal_lost_wait_s",      "EM", "volo", "Secondi di silenzio OGN dopo la discesa-paracadute prima di allarmare", "float"),
+    ("signal_lost_floor_agl_m", "EM", "volo", "Quota AGL massima alla perdita del segnale per far scattare l'allarme (m)", "float"),
 
     # Emergency machine — ground rules
     ("impact_recovery_s",    "EM", "terrestre", "Secondi fermo dopo impatto → AUTO_IMPACT",       "float"),
@@ -325,6 +450,7 @@ GROUND_ALL  = "CYCLIST,CLIMBER,HIKER,RUNNER,OTHER_ON_GROUND"
 
 RULE_DEFAULTS = [
     ("AUTO_CHUTE",    1, FREE_FLIGHT, "immediate"),
+    ("SIGNAL_LOST",   1, FREE_FLIGHT, "immediate"),
     ("AUTO_IMPACT",   1, FREE_FLIGHT + "," + GROUND_ALL,  "pending"),
     # Prolonged immobility without an impact is almost always a legit break
     # (lunch, rest). Off by default; the admin can re-enable it on the EM page.
