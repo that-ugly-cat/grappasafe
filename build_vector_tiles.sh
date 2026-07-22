@@ -102,8 +102,7 @@ tilemaker \
   --config "$TM_CONFIG" \
   --process "$TM_LUA" \
   --input "$AREA_PBF" \
-  --output "$MBTILES" \
-  --store "$WORK/tilemaker.store.d" --shard-stores
+  --output "$MBTILES"
 
 echo "Done. mbtiles: $MBTILES"
 echo "Prossimo: incremento 2 (curve di livello + hillshade dal DEM in tiles/)."
