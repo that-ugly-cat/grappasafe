@@ -269,7 +269,8 @@ async def api_login(request: Request):
     password = body.get("password", "").strip()
     user = db.get_user_by_username(username)
     if not user or not verify_password(password, user["password_hash"]):
-        return JSONResponse({"ok": False, "error": "Credenziali non valide"}, status_code=401)
+        return JSONResponse({"ok": False, "code": "invalid_credentials",
+                             "error": "Credenziali non valide"}, status_code=401)
     request.session["user"] = {"id": user["id"]}
     return JSONResponse({"ok": True})
 
@@ -290,24 +291,27 @@ async def api_register(request: Request):
 
     if not username or not password or not nome or not cognome or not email:
         return JSONResponse(
-            {"ok": False, "error": "Username, password, nome, cognome ed email sono obbligatori"},
+            {"ok": False, "code": "required_fields",
+             "error": "Username, password, nome, cognome ed email sono obbligatori"},
             status_code=400,
         )
     if not _valid_email(email):
-        return JSONResponse({"ok": False, "error": "Email non valida"}, status_code=400)
+        return JSONResponse({"ok": False, "code": "email_invalid",
+                             "error": "Email non valida"}, status_code=400)
     if len(password) < 6:
         return JSONResponse(
-            {"ok": False, "error": "La password deve avere almeno 6 caratteri"},
+            {"ok": False, "code": "password_short",
+             "error": "La password deve avere almeno 6 caratteri"},
             status_code=400,
         )
     if db.get_user_by_username(username):
         return JSONResponse(
-            {"ok": False, "error": "Username già esistente"},
+            {"ok": False, "code": "username_taken", "error": "Username già esistente"},
             status_code=409,
         )
     if db.get_user_by_email(email):
         return JSONResponse(
-            {"ok": False, "error": "Email già registrata"},
+            {"ok": False, "code": "email_taken", "error": "Email già registrata"},
             status_code=409,
         )
 
@@ -1115,10 +1119,12 @@ async def api_update_me(request: Request):
     if "email" in body:
         email = _norm_email(body["email"])
         if not email or not _valid_email(email):
-            return JSONResponse({"ok": False, "error": "Email non valida"}, status_code=400)
+            return JSONResponse({"ok": False, "code": "email_invalid",
+                                 "error": "Email non valida"}, status_code=400)
         other = db.get_user_by_email(email)
         if other and other["id"] != user["id"]:
-            return JSONResponse({"ok": False, "error": "Email già registrata"}, status_code=409)
+            return JSONResponse({"ok": False, "code": "email_taken",
+                                 "error": "Email già registrata"}, status_code=409)
         fields["email"] = email
     db.update_user_profile(user["id"], **fields)
     return JSONResponse({"ok": True})
