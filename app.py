@@ -1,5 +1,6 @@
 import os
 import json
+import json5
 import sqlite3
 import threading
 from contextlib import asynccontextmanager
@@ -238,14 +239,16 @@ _GLYPHS_URL = "https://fonts.undpgeohub.org/fonts/{fontstack}/{range}.pbf"
 def vector_style(request: Request):
     if not os.path.exists(_OTM_LAYERS):
         raise HTTPException(status_code=503, detail="vector style not fetched")
-    # otm_layers.json è di fatto un file JS ("otm_layers = [ ... ];", caricato via
-    # <script> nella demo OTM), non JSON puro: estrai l'array tra le [] esterne.
+    # otm_layers.json è di fatto un file JS ("const otm_layers = [ ... ]", caricato
+    # via <script> nella demo OTM): ha il wrapper di assegnazione e commenti a blocco
+    # /* */ che disattivano alcuni layer. Estrai l'array tra le [] esterne e parsalo
+    # con json5 (tollera commenti e virgole finali).
     with open(_OTM_LAYERS, encoding="utf-8") as f:
         raw = f.read()
     start, end = raw.find("["), raw.rfind("]")
     if start == -1 or end == -1:
         raise HTTPException(status_code=500, detail="otm_layers.json malformed")
-    layers = json.loads(raw[start:end + 1])
+    layers = json5.loads(raw[start:end + 1])
     layers = [lyr for lyr in layers if lyr.get("source") not in _TERRAIN_SOURCES]
 
     base = (db.get_config_value("public_base_url", "") or "").strip().rstrip("/") \
