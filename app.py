@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import uvicorn
+from PIL import Image
 
 from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
 from core.config import SECRET_KEY, AREA_LAT, AREA_LON, AREA_RADIUS_KM
@@ -233,6 +234,39 @@ _OTM_LAYERS = os.path.join(_VECTOR_STYLE_DIR, "otm_layers.json")
 _TERRAIN_SOURCES = {"dem", "contour-source"}
 # Glyphs: per ora il server pubblico che usa OTM. Self-host in seguito (per l'offline).
 _GLYPHS_URL = "https://fonts.undpgeohub.org/fonts/{fontstack}/{range}.pbf"
+
+
+def _ensure_sprite_2x() -> None:
+    """Genera lo sprite @2x dal 1x se manca. MapLibre su device hi-DPI chiede
+    otm_sprite@2x.{png,json} e senza logga "failed to load sprite 404". Upscale
+    ×2 del PNG + coordinate e pixelRatio ×2 nel JSON. (Il 2x "vero" dai simboli
+    sorgente resta una rifinitura futura; qui l'obiettivo è far comparire le
+    icone e togliere l'errore.)"""
+    png1 = os.path.join(_VECTOR_STYLE_DIR, "otm_sprite.png")
+    json1 = os.path.join(_VECTOR_STYLE_DIR, "otm_sprite.json")
+    png2 = os.path.join(_VECTOR_STYLE_DIR, "otm_sprite@2x.png")
+    json2 = os.path.join(_VECTOR_STYLE_DIR, "otm_sprite@2x.json")
+    if not (os.path.exists(png1) and os.path.exists(json1)):
+        return
+    if os.path.exists(png2) and os.path.exists(json2):
+        return
+    img = Image.open(png1)
+    img.resize((img.width * 2, img.height * 2), Image.Resampling.LANCZOS).save(png2)
+    with open(json1, encoding="utf-8") as f:
+        sprite = json.load(f)
+    for icon in sprite.values():
+        for k in ("x", "y", "width", "height"):
+            if k in icon:
+                icon[k] *= 2
+        icon["pixelRatio"] = icon.get("pixelRatio", 1) * 2
+    with open(json2, "w", encoding="utf-8") as f:
+        json.dump(sprite, f)
+
+
+try:
+    _ensure_sprite_2x()
+except Exception:
+    pass
 
 
 @app.get("/vector-style.json")
