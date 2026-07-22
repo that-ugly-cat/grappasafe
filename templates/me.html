@@ -19,7 +19,10 @@
   <p style="color:#888;font-size:.9rem;margin:.7rem 0 1.2rem">{{ t('me.flarmHelp') }}</p>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-    <h3 style="font-size:1.05rem">{{ t('me.myDevicesH3') }}</h3>
+    <h3 style="font-size:1.05rem;display:flex;align-items:center;gap:.45rem">{{ t('me.myDevicesH3') }}
+      <button type="button" onclick="openOgn()" title="{{ t('me.ognModalTitle') }}"
+        style="width:20px;height:20px;border-radius:50%;background:#eef;border:1px solid #ccd;color:#468;font-size:.72rem;font-weight:700;cursor:pointer;line-height:1">?</button>
+    </h3>
     <button class="btn btn-success" onclick="openForm()">{{ t('me.addDevice') }}</button>
   </div>
 
@@ -52,7 +55,19 @@
   </details>
 </div>
 
+<div id="ogn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeOgn()">
+  <div style="background:#fff;border-radius:12px;max-width:460px;width:100%;padding:1.4rem 1.6rem">
+    <h3 style="color:#1a1a2e;margin-bottom:.7rem">{{ t('me.ognModalTitle') }}</h3>
+    <p style="color:#444;font-size:.92rem;line-height:1.55">{{ t('me.ognModalBodyHtml') | safe }}</p>
+    <div style="text-align:right;margin-top:1rem"><button class="btn btn-primary" onclick="closeOgn()">OK</button></div>
+  </div>
+</div>
+
 <script>
+function openOgn() { document.getElementById('ogn-modal').style.display = 'flex'; }
+function closeOgn() { document.getElementById('ogn-modal').style.display = 'none'; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOgn(); });
+
 let devices = {{ devices | tojson }};
 
 const T = {
