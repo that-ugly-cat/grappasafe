@@ -204,14 +204,17 @@ def vector_tile(z: int, x: int, y: int):
         con.close()
     if row is None:
         raise HTTPException(status_code=404)
-    # tilemaker consegna i .pbf gzippati: dichiaralo così il client li decomprime.
+    # tilemaker può consegnare i .pbf gzippati o raw a seconda di config/versione.
+    # Dichiara Content-Encoding: gzip SOLO se il blob è davvero gzip (magic 1f 8b):
+    # altrimenti il client prova a decomprimere dati raw e la tile è illeggibile.
+    data = bytes(row[0])
+    headers = {"Cache-Control": "public, max-age=86400"}
+    if data[:2] == b"\x1f\x8b":
+        headers["Content-Encoding"] = "gzip"
     return Response(
-        content=bytes(row[0]),
+        content=data,
         media_type="application/x-protobuf",
-        headers={
-            "Content-Encoding": "gzip",
-            "Cache-Control": "public, max-age=86400",
-        },
+        headers=headers,
     )
 
 
