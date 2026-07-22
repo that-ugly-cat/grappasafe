@@ -18,6 +18,10 @@
   .guide-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 1.1rem 1.3rem; }
   .guide-card h3 { font-size: 1rem; color: #1a1a2e; margin-bottom: .3rem; }
   .guide-card .who { color: #888; font-size: .82rem; margin-bottom: .7rem; }
+  /* Placeholder 16:9 — sostituire con <img> quando ci sono le immagini reali */
+  .guide-img { aspect-ratio: 16 / 9; width: 100%; margin: 0 0 .9rem; border-radius: 8px;
+    background: #f0f0f4; border: 1px dashed #cfcfd8; display: flex; align-items: center;
+    justify-content: center; color: #aab; font-size: .78rem; letter-spacing: .04em; }
   .guide-card ul { margin: 0; padding-left: 1.1rem; color: #555; font-size: .9rem; line-height: 1.6; }
   .guide-more { margin-top: 1.2rem; }
   .guide-more > summary { cursor: pointer; color: #1a6a8a; font-size: .92rem; font-weight: 500; list-style: revert; padding: .3rem 0; }
@@ -70,8 +74,10 @@
     <h2>Come funziona</h2>
     <div class="guide-grid">
       <div class="guide-card">
-        <h3>Voli con parapendio o deltaplano</h3>
-        <div class="who">Piloti</div>
+        <h3>Sei un pilota</h3>
+        <div class="who">parapendio e deltaplano</div>
+        <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
+        <div class="guide-img">immagine 16:9</div>
         <ul>
           <li>Puoi essere seguito con l'<strong>app</strong> (GPS e sensori del telefono) o via
             <strong>OGN/FLARM</strong>, il transponder di bordo.</li>
@@ -85,6 +91,8 @@
       <div class="guide-card">
         <h3>Ti muovi a terra</h3>
         <div class="who">Bici, corsa, escursioni, arrampicata</div>
+        <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
+        <div class="guide-img">immagine 16:9</div>
         <ul>
           <li>Apri l'app, scegli l'attività e avvia il tracking: il telefono manda posizione e
             movimento mentre ti muovi.</li>
@@ -97,6 +105,8 @@
       <div class="guide-card">
         <h3>Se qualcosa va storto</h3>
         <div class="who">Rilevamento automatico</div>
+        <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
+        <div class="guide-img">immagine 16:9</div>
         <ul>
           <li><strong>SOS manuale</strong>: tieni premuto il pulsante e l'allerta parte subito.</li>
           <li><strong>Automatico</strong>: il sistema riconosce un impatto, una discesa troppo
@@ -104,6 +114,7 @@
           <li>Prima di allertare ti <strong>chiede conferma</strong> sul telefono: «sto bene»
             annulla. Se non rispondi in tempo — sei incosciente, o il telefono si spegne —
             <strong>allertiamo comunque</strong>.</li>
+          <li>I soccorsi sono gestiti e coordinati dal Consorzio <strong>Vivere il Grappa</strong>.</li>
         </ul>
       </div>
     </div>
