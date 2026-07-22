@@ -147,6 +147,12 @@
         <label for="smtp_tls" style="margin:0">Usa STARTTLS</label>
       </div>
     </div>
+    <div class="field">
+      <label>Email destinatario notifiche di emergenza</label>
+      <input type="text" data-key="notify_email" data-tipo="text" placeholder="soccorsi@esempio.com"
+             value="{{ cfg.notify_email.value if cfg.notify_email else '' }}">
+      <div class="hint">Chi riceve l'email quando si apre un'emergenza. Il recupero password usa invece l'email dell'utente.</div>
+    </div>
     <div class="actions">
       <button class="btn-save" onclick="saveAll()">Salva</button>
       <button class="btn-test" onclick="saveAndTestEmail()">Salva e invia email di prova</button>

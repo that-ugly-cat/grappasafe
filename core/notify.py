@@ -112,7 +112,7 @@ def _smtp_conf():
 
 def _send_email(subject: str, body: str, to: str = None) -> bool:
     host, port, user, pw, frm, tls, enabled = _smtp_conf()
-    to = to or NOTIFY_EMAIL
+    to = to or (_db.get_config_value("notify_email", "") or NOTIFY_EMAIL)
     if not enabled:
         print("  [Email] disabilitato — skip")
         return False

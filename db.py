@@ -255,6 +255,7 @@ def _seed_config(con):
         ("smtp_pass",     "",     "text", "Password SMTP"),
         ("smtp_from",     "",     "text", "Indirizzo mittente (From); vuoto = utente SMTP"),
         ("smtp_tls",      "true", "bool", "Usa STARTTLS"),
+        ("notify_email",  "",     "text", "Email che riceve le notifiche di emergenza"),
     ):
         con.execute("""
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
