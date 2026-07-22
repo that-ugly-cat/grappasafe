@@ -130,8 +130,10 @@ python fetch_map_tiles.py    # optional: OpenTopoMap tiles for the app's offline
 uvicorn app:app --reload
 ```
 
-Open http://localhost:8000/ and log in as the admin created by `seed.py`. Schema
-migrations run automatically on startup, so an existing database is upgraded in place.
+Open http://localhost:8000/ and log in as the admin created by `seed.py`. The full schema
+and the default config/rules are created idempotently on startup (`CREATE TABLE IF NOT
+EXISTS` + `INSERT OR IGNORE` seeds) — the schema in `db.py` is the single source of truth,
+with no incremental migrations.
 
 ## Stack
 

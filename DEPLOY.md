@@ -101,7 +101,10 @@ email. Configure Telegram from the admin **Notifiche** page (applied within 60 s
 Email (used for the **password-reset** flow and, optionally, the emergency alert) is
 configured in the same page: SMTP server, sender, an on/off toggle, and one or more
 recipients for emergency emails (comma-separated), with a **Salva e invia email di prova**
-button. All notification settings live in the database — there are no notification env vars.
+button. The page also carries the **in-emergency message** shown on the subject's phone —
+leave it empty to use the app's own text, translated into the app's language; set it only to
+force a fixed, single-language message. All notification settings live in the database —
+there are no notification env vars.
 
 ## 7. Updating
 
