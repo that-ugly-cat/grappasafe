@@ -253,14 +253,16 @@ async def index(request: Request):
     user = get_current_user(request)
     if user:
         return RedirectResponse(_home_for(user), status_code=303)
-    return templates.TemplateResponse(request, "login.html", {})
+    return templates.TemplateResponse(request, "login.html", _web_i18n(request, None))
 
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     user = db.get_user_by_username(username)
     if not user or not verify_password(password, user["password_hash"]):
-        return templates.TemplateResponse(request, "login.html", {"error": "Credenziali non valide"})
+        ctx = _web_i18n(request, None)
+        return templates.TemplateResponse(request, "login.html",
+                                          {"error": ctx["t"]("landing.invalidCredentials"), **ctx})
     # Web login is open to every user: admins go to the dashboard, regular
     # users to their /me home (profile + OGN devices).
     request.session["user"] = {"id": user["id"]}

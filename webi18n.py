@@ -109,6 +109,25 @@ _it = {
 
     # language switcher
     "lang.label": "Lingua",
+    "landing.tagline": "Monitoraggio di sicurezza per il volo libero e l'outdoor sul Massiccio del Grappa",
+    "landing.lead": "GrappaSafe segue chi vola e chi si muove all'aperto sul Massiccio del Grappa, e allerta i soccorsi quando qualcosa va storto. Ti registri, avvii la tua attività, e se serve il sistema chiede aiuto per te — con la tua posizione, i tuoi contatti e i tuoi dati medici. Gratuito, pensato per la comunità del Grappa, sviluppato dal Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Accedi",
+    "landing.username": "Nome utente",
+    "landing.password": "Password",
+    "landing.noAccount": "Non hai un account?",
+    "landing.register": "Registrati",
+    "landing.forgot": "Password dimenticata?",
+    "landing.invalidCredentials": "Credenziali non valide",
+    "landing.howTitle": "Come funziona",
+    "landing.pilotTitle": "Sei un pilota",
+    "landing.pilotWho": "parapendio e deltaplano",
+    "landing.pilotItemsHtml": "<li>Puoi essere seguito con l'<strong>app</strong> (GPS e sensori del telefono) o via <strong>OGN/FLARM</strong>, il transponder di bordo.</li><li>Col solo OGN ti <strong>vediamo comunque</strong> sulla mappa, ma <strong>senza i dati che contano</strong> in emergenza: chi sei, i tuoi contatti, il gruppo sanguigno.</li><li>Perciò conviene <strong>registrarti e abbinare l'ID OGN al tuo profilo</strong>. Fatto una volta, poi voli come preferisci — con l'app o con qualsiasi mezzo OGN: verrai sempre riconosciuto.</li>",
+    "landing.groundTitle": "Ti muovi a terra",
+    "landing.groundWho": "Bici, corsa, escursioni, arrampicata",
+    "landing.groundItemsHtml": "<li>Apri l'app, scegli l'attività e avvia il tracking: il telefono manda posizione e movimento mentre ti muovi.</li><li>La tua traccia è visibile e <strong>condivisibile</strong> — un link live per far seguire l'uscita a famiglia e amici.</li><li>Tieni aggiornati profilo e dati medici: sono esattamente ciò che vedono i soccorritori.</li>",
+    "landing.emergTitle": "Se qualcosa va storto",
+    "landing.emergWho": "Rilevamento automatico",
+    "landing.emergItemsHtml": "<li><strong>SOS manuale</strong>: tieni premuto il pulsante e l'allerta parte subito.</li><li><strong>Automatico</strong>: il sistema riconosce un impatto, una discesa troppo rapida (paracadute d'emergenza) o un'immobilità anomala.</li><li>Prima di allertare ti <strong>chiede conferma</strong> sul telefono: «sto bene» annulla. Se non rispondi in tempo — sei incosciente, o il telefono si spegne — <strong>allertiamo comunque</strong>.</li><li>I soccorsi sono coordinati dal Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _en = {
@@ -169,6 +188,25 @@ _en = {
     "profile.devicesNoteHtml": "OGN/FLARM devices are managed on the <a href=\"/me\">My devices</a> page.",
 
     "lang.label": "Language",
+    "landing.tagline": "Safety monitoring for free flight and the outdoors on the Monte Grappa massif",
+    "landing.lead": "GrappaSafe follows those who fly and those who move outdoors on the Monte Grappa massif, and alerts rescuers when something goes wrong. You register, start your activity, and if needed the system calls for help for you — with your position, your contacts and your medical data. Free, made for the Grappa community, developed by the Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Sign in",
+    "landing.username": "Username",
+    "landing.password": "Password",
+    "landing.noAccount": "No account?",
+    "landing.register": "Sign up",
+    "landing.forgot": "Forgot password?",
+    "landing.invalidCredentials": "Invalid credentials",
+    "landing.howTitle": "How it works",
+    "landing.pilotTitle": "You're a pilot",
+    "landing.pilotWho": "paragliding and hang gliding",
+    "landing.pilotItemsHtml": "<li>You can be tracked with the <strong>app</strong> (phone GPS and sensors) or via <strong>OGN/FLARM</strong>, your onboard transponder.</li><li>With OGN alone we <strong>still see you</strong> on the map, but <strong>without the data that matters</strong> in an emergency: who you are, your contacts, your blood type.</li><li>So it pays to <strong>register and link your OGN id to your profile</strong>. Do it once, then fly however you like — with the app or with any OGN device: you'll always be recognised.</li>",
+    "landing.groundTitle": "You move on the ground",
+    "landing.groundWho": "Cycling, running, hiking, climbing",
+    "landing.groundItemsHtml": "<li>Open the app, pick your activity and start tracking: your phone sends position and movement while you go.</li><li>Your track is visible and <strong>shareable</strong> — a live link to let family and friends follow along.</li><li>Keep your profile and medical data up to date: it's exactly what rescuers see.</li>",
+    "landing.emergTitle": "If something goes wrong",
+    "landing.emergWho": "Automatic detection",
+    "landing.emergItemsHtml": "<li><strong>Manual SOS</strong>: hold the button and the alert goes out at once.</li><li><strong>Automatic</strong>: the system recognises an impact, a too-fast descent (reserve chute) or unusual immobility.</li><li>Before alerting it <strong>asks you to confirm</strong> on the phone: «I'm OK» cancels. If you don't answer in time — you're unconscious, or the phone dies — <strong>we alert anyway</strong>.</li><li>Rescues are coordinated by the Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _de = {
@@ -229,6 +267,25 @@ _de = {
     "profile.devicesNoteHtml": "OGN/FLARM-Geräte werden auf der Seite <a href=\"/me\">Meine Geräte</a> verwaltet.",
 
     "lang.label": "Sprache",
+    "landing.tagline": "Sicherheitsüberwachung für Gleitflug und Outdoor am Monte-Grappa-Massiv",
+    "landing.lead": "GrappaSafe begleitet alle, die am Monte-Grappa-Massiv fliegen oder sich draußen bewegen, und alarmiert die Rettungskräfte, wenn etwas schiefgeht. Du registrierst dich, startest deine Aktivität, und im Notfall ruft das System für dich Hilfe — mit deiner Position, deinen Kontakten und deinen medizinischen Daten. Kostenlos, für die Grappa-Community, entwickelt vom Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Anmelden",
+    "landing.username": "Benutzername",
+    "landing.password": "Passwort",
+    "landing.noAccount": "Kein Konto?",
+    "landing.register": "Registrieren",
+    "landing.forgot": "Passwort vergessen?",
+    "landing.invalidCredentials": "Ungültige Anmeldedaten",
+    "landing.howTitle": "So funktioniert's",
+    "landing.pilotTitle": "Du bist Pilot",
+    "landing.pilotWho": "Gleitschirm und Drachen",
+    "landing.pilotItemsHtml": "<li>Du kannst mit der <strong>App</strong> (GPS und Sensoren des Telefons) oder über <strong>OGN/FLARM</strong>, deinen Bord-Transponder, verfolgt werden.</li><li>Nur mit OGN <strong>sehen wir dich zwar</strong> auf der Karte, aber <strong>ohne die Daten, die zählen</strong> im Notfall: wer du bist, deine Kontakte, deine Blutgruppe.</li><li>Deshalb lohnt es sich, dich zu <strong>registrieren und deine OGN-ID mit deinem Profil zu verknüpfen</strong>. Einmal gemacht, fliegst du dann wie du willst — mit der App oder mit jedem OGN-Gerät: du wirst immer erkannt.</li>",
+    "landing.groundTitle": "Du bewegst dich am Boden",
+    "landing.groundWho": "Radfahren, Laufen, Wandern, Klettern",
+    "landing.groundItemsHtml": "<li>Öffne die App, wähle deine Aktivität und starte das Tracking: dein Telefon sendet Position und Bewegung, während du unterwegs bist.</li><li>Deine Spur ist sichtbar und <strong>teilbar</strong> — ein Live-Link, mit dem Familie und Freunde mitverfolgen können.</li><li>Halte Profil und medizinische Daten aktuell: genau das sehen die Rettungskräfte.</li>",
+    "landing.emergTitle": "Wenn etwas schiefgeht",
+    "landing.emergWho": "Automatische Erkennung",
+    "landing.emergItemsHtml": "<li><strong>Manueller SOS</strong>: Knopf gedrückt halten und der Alarm geht sofort raus.</li><li><strong>Automatisch</strong>: das System erkennt einen Aufprall, eine zu schnelle Sinkfahrt (Rettungsschirm) oder ungewöhnliche Bewegungslosigkeit.</li><li>Vor dem Alarm <strong>fragt es dich am Telefon</strong>: «Mir geht's gut» bricht ab. Antwortest du nicht rechtzeitig — bewusstlos oder Telefon leer — <strong>alarmieren wir trotzdem</strong>.</li><li>Die Rettung wird vom Consorzio <strong>Vivere il Grappa</strong> koordiniert.</li>",
 }
 
 _fr = {
@@ -289,6 +346,25 @@ _fr = {
     "profile.devicesNoteHtml": "Les appareils OGN/FLARM se gèrent sur la page <a href=\"/me\">Mes appareils</a>.",
 
     "lang.label": "Langue",
+    "landing.tagline": "Surveillance de sécurité pour le vol libre et l'outdoor sur le massif du Grappa",
+    "landing.lead": "GrappaSafe suit ceux qui volent et ceux qui bougent en plein air sur le massif du Grappa, et alerte les secours quand quelque chose ne va pas. Tu t'inscris, tu démarres ton activité, et si besoin le système appelle à l'aide pour toi — avec ta position, tes contacts et tes données médicales. Gratuit, pensé pour la communauté du Grappa, développé par le Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Se connecter",
+    "landing.username": "Nom d'utilisateur",
+    "landing.password": "Mot de passe",
+    "landing.noAccount": "Pas de compte ?",
+    "landing.register": "Inscrivez-vous",
+    "landing.forgot": "Mot de passe oublié ?",
+    "landing.invalidCredentials": "Identifiants invalides",
+    "landing.howTitle": "Comment ça marche",
+    "landing.pilotTitle": "Vous êtes pilote",
+    "landing.pilotWho": "parapente et deltaplane",
+    "landing.pilotItemsHtml": "<li>Tu peux être suivi avec l'<strong>app</strong> (GPS et capteurs du téléphone) ou via <strong>OGN/FLARM</strong>, ton transpondeur de bord.</li><li>Avec l'OGN seul on te <strong>voit quand même</strong> sur la carte, mais <strong>sans les données qui comptent</strong> en cas d'urgence : qui tu es, tes contacts, ton groupe sanguin.</li><li>Il vaut donc mieux <strong>t'inscrire et associer ton ID OGN à ton profil</strong>. Une fois fait, vole comme tu veux — avec l'app ou avec n'importe quel appareil OGN : tu seras toujours reconnu.</li>",
+    "landing.groundTitle": "Tu bouges au sol",
+    "landing.groundWho": "Vélo, course, randonnée, escalade",
+    "landing.groundItemsHtml": "<li>Ouvre l'app, choisis ton activité et lance le suivi : ton téléphone envoie position et mouvement pendant que tu bouges.</li><li>Ta trace est visible et <strong>partageable</strong> — un lien en direct pour que famille et amis suivent la sortie.</li><li>Garde à jour ton profil et tes données médicales : c'est exactement ce que voient les secours.</li>",
+    "landing.emergTitle": "Si quelque chose ne va pas",
+    "landing.emergWho": "Détection automatique",
+    "landing.emergItemsHtml": "<li><strong>SOS manuel</strong> : maintiens le bouton et l'alerte part aussitôt.</li><li><strong>Automatique</strong> : le système reconnaît un impact, une descente trop rapide (parachute de secours) ou une immobilité anormale.</li><li>Avant d'alerter, il te <strong>demande confirmation</strong> sur le téléphone : « je vais bien » annule. Si tu ne réponds pas à temps — inconscient, ou téléphone déchargé — <strong>on alerte quand même</strong>.</li><li>Les secours sont coordonnés par le Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _es = {
@@ -349,6 +425,25 @@ _es = {
     "profile.devicesNoteHtml": "Los dispositivos OGN/FLARM se gestionan en la página <a href=\"/me\">Mis dispositivos</a>.",
 
     "lang.label": "Idioma",
+    "landing.tagline": "Monitorización de seguridad para el vuelo libre y el outdoor en el macizo del Grappa",
+    "landing.lead": "GrappaSafe sigue a quien vuela y a quien se mueve al aire libre en el macizo del Grappa, y alerta a los servicios de rescate cuando algo va mal. Te registras, inicias tu actividad y, si hace falta, el sistema pide ayuda por ti — con tu posición, tus contactos y tus datos médicos. Gratuito, pensado para la comunidad del Grappa, desarrollado por el Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Acceder",
+    "landing.username": "Nombre de usuario",
+    "landing.password": "Contraseña",
+    "landing.noAccount": "¿No tienes cuenta?",
+    "landing.register": "Regístrate",
+    "landing.forgot": "¿Olvidaste la contraseña?",
+    "landing.invalidCredentials": "Credenciales no válidas",
+    "landing.howTitle": "Cómo funciona",
+    "landing.pilotTitle": "Eres piloto",
+    "landing.pilotWho": "parapente y ala delta",
+    "landing.pilotItemsHtml": "<li>Puedes ser seguido con la <strong>app</strong> (GPS y sensores del teléfono) o vía <strong>OGN/FLARM</strong>, tu transpondedor de a bordo.</li><li>Solo con OGN <strong>te vemos igualmente</strong> en el mapa, pero <strong>sin los datos que importan</strong> en una emergencia: quién eres, tus contactos, tu grupo sanguíneo.</li><li>Por eso conviene <strong>registrarte y asociar tu ID OGN a tu perfil</strong>. Hecho una vez, vuela como prefieras — con la app o con cualquier equipo OGN: siempre te reconocerán.</li>",
+    "landing.groundTitle": "Te mueves por tierra",
+    "landing.groundWho": "Ciclismo, carrera, senderismo, escalada",
+    "landing.groundItemsHtml": "<li>Abre la app, elige tu actividad e inicia el seguimiento: tu teléfono envía posición y movimiento mientras te mueves.</li><li>Tu traza es visible y <strong>compartible</strong> — un enlace en directo para que familia y amigos sigan la salida.</li><li>Mantén al día tu perfil y tus datos médicos: es exactamente lo que ven los servicios de rescate.</li>",
+    "landing.emergTitle": "Si algo va mal",
+    "landing.emergWho": "Detección automática",
+    "landing.emergItemsHtml": "<li><strong>SOS manual</strong>: mantén pulsado el botón y la alerta sale enseguida.</li><li><strong>Automático</strong>: el sistema reconoce un impacto, un descenso demasiado rápido (paracaídas de emergencia) o una inmovilidad anómala.</li><li>Antes de alertar te <strong>pide confirmación</strong> en el teléfono: «estoy bien» cancela. Si no respondes a tiempo — inconsciente, o el teléfono se apaga — <strong>alertamos igualmente</strong>.</li><li>Los rescates los coordina el Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _nl = {
@@ -409,6 +504,25 @@ _nl = {
     "profile.devicesNoteHtml": "OGN/FLARM-apparaten beheer je op de pagina <a href=\"/me\">Mijn apparaten</a>.",
 
     "lang.label": "Taal",
+    "landing.tagline": "Veiligheidsmonitoring voor vrije vlucht en outdoor op het Monte Grappa-massief",
+    "landing.lead": "GrappaSafe volgt wie vliegt en wie zich buiten beweegt op het Monte Grappa-massief, en waarschuwt de hulpdiensten als er iets misgaat. Je registreert je, start je activiteit, en indien nodig roept het systeem hulp voor je — met je positie, je contacten en je medische gegevens. Gratis, gemaakt voor de Grappa-gemeenschap, ontwikkeld door het Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Aanmelden",
+    "landing.username": "Gebruikersnaam",
+    "landing.password": "Wachtwoord",
+    "landing.noAccount": "Geen account?",
+    "landing.register": "Registreer",
+    "landing.forgot": "Wachtwoord vergeten?",
+    "landing.invalidCredentials": "Ongeldige inloggegevens",
+    "landing.howTitle": "Hoe het werkt",
+    "landing.pilotTitle": "Je bent piloot",
+    "landing.pilotWho": "paragliden en deltavliegen",
+    "landing.pilotItemsHtml": "<li>Je kunt worden gevolgd met de <strong>app</strong> (gps en sensoren van de telefoon) of via <strong>OGN/FLARM</strong>, je transponder aan boord.</li><li>Met alleen OGN <strong>zien we je wel</strong> op de kaart, maar <strong>zonder de gegevens die tellen</strong> bij een noodgeval: wie je bent, je contacten, je bloedgroep.</li><li>Daarom loont het om je te <strong>registreren en je OGN-id aan je profiel te koppelen</strong>. Eén keer gedaan, vlieg dan zoals je wilt — met de app of met elk OGN-apparaat: je wordt altijd herkend.</li>",
+    "landing.groundTitle": "Je beweegt op de grond",
+    "landing.groundWho": "Fietsen, hardlopen, wandelen, klimmen",
+    "landing.groundItemsHtml": "<li>Open de app, kies je activiteit en start het tracken: je telefoon stuurt positie en beweging terwijl je onderweg bent.</li><li>Je spoor is zichtbaar en <strong>deelbaar</strong> — een live-link zodat familie en vrienden kunnen meekijken.</li><li>Houd je profiel en medische gegevens actueel: dat is precies wat de hulpdiensten zien.</li>",
+    "landing.emergTitle": "Als er iets misgaat",
+    "landing.emergWho": "Automatische detectie",
+    "landing.emergItemsHtml": "<li><strong>Handmatige SOS</strong>: houd de knop ingedrukt en het alarm gaat meteen uit.</li><li><strong>Automatisch</strong>: het systeem herkent een impact, een te snelle daling (reserveparachute) of ongewone bewegingloosheid.</li><li>Voordat het alarm slaat <strong>vraagt het bevestiging</strong> op de telefoon: «ik ben oké» annuleert. Reageer je niet op tijd — bewusteloos, of telefoon leeg — <strong>dan waarschuwen we toch</strong>.</li><li>De reddingen worden gecoördineerd door het Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _pl = {
@@ -469,6 +583,25 @@ _pl = {
     "profile.devicesNoteHtml": "Urządzeniami OGN/FLARM zarządzasz na stronie <a href=\"/me\">Moje urządzenia</a>.",
 
     "lang.label": "Język",
+    "landing.tagline": "Monitoring bezpieczeństwa dla wolnego lotu i aktywności outdoor na masywie Grappa",
+    "landing.lead": "GrappaSafe śledzi tych, którzy latają i poruszają się na świeżym powietrzu na masywie Grappa, i alarmuje ratowników, gdy coś pójdzie nie tak. Rejestrujesz się, rozpoczynasz aktywność, a w razie potrzeby system wzywa dla Ciebie pomoc — z Twoją pozycją, kontaktami i danymi medycznymi. Bezpłatny, stworzony dla społeczności Grappy, opracowany przez Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Zaloguj się",
+    "landing.username": "Nazwa użytkownika",
+    "landing.password": "Hasło",
+    "landing.noAccount": "Nie masz konta?",
+    "landing.register": "Zarejestruj się",
+    "landing.forgot": "Nie pamiętasz hasła?",
+    "landing.invalidCredentials": "Nieprawidłowe dane logowania",
+    "landing.howTitle": "Jak to działa",
+    "landing.pilotTitle": "Jesteś pilotem",
+    "landing.pilotWho": "paralotnie i lotnie",
+    "landing.pilotItemsHtml": "<li>Możesz być śledzony <strong>aplikacją</strong> (GPS i czujniki telefonu) lub przez <strong>OGN/FLARM</strong>, transponder pokładowy.</li><li>Przy samym OGN <strong>i tak Cię widzimy</strong> na mapie, ale <strong>bez danych, które się liczą</strong> w nagłym wypadku: kim jesteś, Twoje kontakty, grupa krwi.</li><li>Dlatego warto się <strong>zarejestrować i powiązać ID OGN ze swoim profilem</strong>. Raz zrobione, potem latasz jak chcesz — z aplikacją lub z dowolnym urządzeniem OGN: zawsze zostaniesz rozpoznany.</li>",
+    "landing.groundTitle": "Poruszasz się po ziemi",
+    "landing.groundWho": "Rower, bieganie, wędrówki, wspinaczka",
+    "landing.groundItemsHtml": "<li>Otwórz aplikację, wybierz aktywność i uruchom śledzenie: telefon wysyła pozycję i ruch, gdy się poruszasz.</li><li>Twoja trasa jest widoczna i <strong>możliwa do udostępnienia</strong> — link na żywo, by rodzina i znajomi mogli śledzić wyjście.</li><li>Aktualizuj profil i dane medyczne: to dokładnie to, co widzą ratownicy.</li>",
+    "landing.emergTitle": "Jeśli coś pójdzie nie tak",
+    "landing.emergWho": "Wykrywanie automatyczne",
+    "landing.emergItemsHtml": "<li><strong>Ręczne SOS</strong>: przytrzymaj przycisk, a alarm rusza natychmiast.</li><li><strong>Automatycznie</strong>: system rozpoznaje uderzenie, zbyt szybkie opadanie (spadochron zapasowy) lub nietypowy bezruch.</li><li>Przed alarmem <strong>prosi o potwierdzenie</strong> na telefonie: «nic mi nie jest» anuluje. Jeśli nie odpowiesz na czas — nieprzytomny lub telefon się rozładuje — <strong>i tak alarmujemy</strong>.</li><li>Akcje ratunkowe koordynuje Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 _cs = {
@@ -529,6 +662,25 @@ _cs = {
     "profile.devicesNoteHtml": "Zařízení OGN/FLARM spravujete na stránce <a href=\"/me\">Moje zařízení</a>.",
 
     "lang.label": "Jazyk",
+    "landing.tagline": "Bezpečnostní monitoring pro volné létání a outdoor na masivu Monte Grappa",
+    "landing.lead": "GrappaSafe sleduje ty, kdo létají a pohybují se venku na masivu Monte Grappa, a upozorní záchranáře, když se něco pokazí. Zaregistruješ se, spustíš svou aktivitu, a když je potřeba, systém přivolá pomoc za tebe — s tvou polohou, kontakty a zdravotními údaji. Zdarma, pro komunitu Grappy, vyvinuto sdružením Consorzio <strong>Vivere il Grappa</strong>.",
+    "landing.signIn": "Přihlásit se",
+    "landing.username": "Uživatelské jméno",
+    "landing.password": "Heslo",
+    "landing.noAccount": "Nemáte účet?",
+    "landing.register": "Zaregistrovat se",
+    "landing.forgot": "Zapomněli jste heslo?",
+    "landing.invalidCredentials": "Neplatné přihlašovací údaje",
+    "landing.howTitle": "Jak to funguje",
+    "landing.pilotTitle": "Jsi pilot",
+    "landing.pilotWho": "padákové kluzáky a rogala",
+    "landing.pilotItemsHtml": "<li>Můžeš být sledován <strong>aplikací</strong> (GPS a senzory telefonu) nebo přes <strong>OGN/FLARM</strong>, palubní transpondér.</li><li>Jen s OGN tě <strong>sice vidíme</strong> na mapě, ale <strong>bez údajů, na kterých záleží</strong> v nouzi: kdo jsi, tvé kontakty, krevní skupina.</li><li>Proto se vyplatí se <strong>zaregistrovat a propojit své OGN ID s profilem</strong>. Jednou nastaveno, pak létáš jak chceš — s aplikací nebo s jakýmkoli OGN zařízením: vždy budeš rozpoznán.</li>",
+    "landing.groundTitle": "Pohybuješ se po zemi",
+    "landing.groundWho": "Cyklistika, běh, turistika, lezení",
+    "landing.groundItemsHtml": "<li>Otevři aplikaci, vyber aktivitu a spusť sledování: telefon posílá polohu a pohyb, když se pohybuješ.</li><li>Tvá stopa je viditelná a <strong>sdílitelná</strong> — živý odkaz, aby rodina a přátelé mohli sledovat výpravu.</li><li>Udržuj profil a zdravotní údaje aktuální: přesně to vidí záchranáři.</li>",
+    "landing.emergTitle": "Když se něco pokazí",
+    "landing.emergWho": "Automatická detekce",
+    "landing.emergItemsHtml": "<li><strong>Ruční SOS</strong>: podrž tlačítko a výstraha se odešle ihned.</li><li><strong>Automaticky</strong>: systém rozpozná náraz, příliš rychlý sestup (záložní padák) nebo neobvyklou nehybnost.</li><li>Před výstrahou tě <strong>požádá o potvrzení</strong> na telefonu: «jsem v pořádku» zruší. Pokud neodpovíš včas — v bezvědomí nebo se telefon vybije — <strong>upozorníme i tak</strong>.</li><li>Záchranu koordinuje sdružení Consorzio <strong>Vivere il Grappa</strong>.</li>",
 }
 
 WEB_STRINGS = {

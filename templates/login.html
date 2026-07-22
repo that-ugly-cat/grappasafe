@@ -36,86 +36,65 @@
   footer { margin: 3rem 0 1rem; text-align: center; color: #999; font-size: .88rem; }
   footer a { color: #1a6a8a; text-decoration: none; }
   footer a:hover { text-decoration: underline; }
+  .langbar { text-align: right; margin: .6rem 0 -.2rem; font-size: .78rem; }
+  .langbar a { color: #999; text-decoration: none; margin-left: .5rem; }
+  .langbar a:hover { color: #1a1a2e; }
+  .langbar a.on { color: #1a1a2e; font-weight: 700; }
 </style>
 
 <div class="landing">
+  <div class="langbar">
+    {% for l in web_langs %}<a href="/lang/{{ l }}?next=/" class="{{ 'on' if l == lang else '' }}">{{ l|upper }}</a>{% endfor %}
+  </div>
   <div class="hero">
     <img src="/static/logo-consorzio.png" alt="Vivere il Grappa">
     <div>
       <h1>GrappaSafe</h1>
-      <p>Monitoraggio di sicurezza per il volo libero e l'outdoor sul Massiccio del Grappa</p>
+      <p>{{ t('landing.tagline') }}</p>
     </div>
   </div>
 
   <div class="top">
     <div>
-      <p class="lead">
-        GrappaSafe segue chi vola e chi si muove all'aperto sul Massiccio del Grappa, e
-        allerta i soccorsi quando qualcosa va storto. Ti registri, avvii la tua attività, e
-        se serve il sistema chiede aiuto per te — con la tua posizione, i tuoi contatti e i
-        tuoi dati medici. Gratuito, pensato per la comunità del Grappa, sviluppato dal Consorzio <strong>Vivere il Grappa</strong>.
-      </p>
+      <p class="lead">{{ t('landing.lead') | safe }}</p>
     </div>
 
     <div class="card login-card">
-      <h2>Accedi</h2>
+      <h2>{{ t('landing.signIn') }}</h2>
       <form method="post" action="/login">
-        <label>Username <input type="text" name="username" required autofocus></label>
-        <label>Password <input type="password" name="password" required></label>
+        <label>{{ t('landing.username') }} <input type="text" name="username" required autofocus></label>
+        <label>{{ t('landing.password') }} <input type="password" name="password" required></label>
         {% if error %}<p class="error">{{ error }}</p>{% endif %}
-        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Accedi</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">{{ t('landing.signIn') }}</button>
       </form>
-      <p style="margin-top:.8rem;font-size:.9rem;color:#666">Non hai un account? <a href="/register" style="color:#1a6a8a">Registrati</a></p>
-      <p style="margin-top:.3rem;font-size:.9rem"><a href="/forgot" style="color:#1a6a8a">Password dimenticata?</a></p>
+      <p style="margin-top:.8rem;font-size:.9rem;color:#666">{{ t('landing.noAccount') }} <a href="/register" style="color:#1a6a8a">{{ t('landing.register') }}</a></p>
+      <p style="margin-top:.3rem;font-size:.9rem"><a href="/forgot" style="color:#1a6a8a">{{ t('landing.forgot') }}</a></p>
     </div>
   </div>
 
   <div class="guide">
-    <h2>Come funziona</h2>
+    <h2>{{ t('landing.howTitle') }}</h2>
     <div class="guide-grid">
       <div class="guide-card">
-        <h3>Sei un pilota</h3>
-        <div class="who">parapendio e deltaplano</div>
+        <h3>{{ t('landing.pilotTitle') }}</h3>
+        <div class="who">{{ t('landing.pilotWho') }}</div>
         <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
-        <div class="guide-img">immagine 16:9</div>
-        <ul>
-          <li>Puoi essere seguito con l'<strong>app</strong> (GPS e sensori del telefono) o via
-            <strong>OGN/FLARM</strong>, il transponder di bordo.</li>
-          <li>Col solo OGN ti <strong>vediamo comunque</strong> sulla mappa, ma <strong>senza i
-            dati che contano</strong> in emergenza: chi sei, i tuoi contatti, il gruppo sanguigno.</li>
-          <li>Perciò conviene <strong>registrarti e abbinare l'ID OGN al tuo profilo</strong>.
-            Fatto una volta, poi voli come preferisci — con l'app o con qualsiasi mezzo OGN: verrai
-            sempre riconosciuto.</li>
-        </ul>
+        <div class="guide-img">16:9</div>
+        <ul>{{ t('landing.pilotItemsHtml') | safe }}</ul>
       </div>
       <div class="guide-card">
-        <h3>Ti muovi a terra</h3>
-        <div class="who">Bici, corsa, escursioni, arrampicata</div>
+        <h3>{{ t('landing.groundTitle') }}</h3>
+        <div class="who">{{ t('landing.groundWho') }}</div>
         <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
-        <div class="guide-img">immagine 16:9</div>
-        <ul>
-          <li>Apri l'app, scegli l'attività e avvia il tracking: il telefono manda posizione e
-            movimento mentre ti muovi.</li>
-          <li>La tua traccia è visibile e <strong>condivisibile</strong> — un link live per far
-            seguire l'uscita a famiglia e amici.</li>
-          <li>Tieni aggiornati profilo e dati medici: sono esattamente ciò che vedono i
-            soccorritori.</li>
-        </ul>
+        <div class="guide-img">16:9</div>
+        <ul>{{ t('landing.groundItemsHtml') | safe }}</ul>
       </div>
       <div class="guide-card">
-        <h3>Se qualcosa va storto</h3>
-        <div class="who">Rilevamento automatico</div>
+        <h3>{{ t('landing.emergTitle') }}</h3>
+        <div class="who">{{ t('landing.emergWho') }}</div>
         <!-- sostituire con <img src="..." class="guide-img" alt="..."> 16:9 -->
-        <div class="guide-img">immagine 16:9</div>
-        <ul>
-          <li><strong>SOS manuale</strong>: tieni premuto il pulsante e l'allerta parte subito.</li>
-          <li><strong>Automatico</strong>: il sistema riconosce un impatto, una discesa troppo
-            rapida (paracadute d'emergenza) o un'immobilità anomala.</li>
-          <li>Prima di allertare ti <strong>chiede conferma</strong> sul telefono: «sto bene»
-            annulla. Se non rispondi in tempo — sei incosciente, o il telefono si spegne —
-            <strong>allertiamo comunque</strong>.</li>
-          <li>I soccorsi sono coordinati dal Consorzio <strong>Vivere il Grappa</strong>.</li>
-        </ul>
+        <div class="guide-img">16:9</div>
+        <ul>{{ t('landing.emergItemsHtml') | safe }}</ul>
       </div>
     </div>
   </div>
