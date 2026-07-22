@@ -48,7 +48,10 @@
         <label>Nome <input type="text" name="nome" value="{{ form.nome }}" required></label>
         <label>Cognome <input type="text" name="cognome" value="{{ form.cognome }}" required></label>
       </div>
-      <label>Telefono <input type="tel" name="telefono" value="{{ form.telefono }}"></label>
+      <div class="grid2">
+        <label>Telefono <input type="tel" name="telefono" value="{{ form.telefono }}"></label>
+        <label>Data di nascita <input type="date" name="data_nascita" value="{{ form.data_nascita }}"></label>
+      </div>
 
       <h4>Contatto d'emergenza</h4>
       <div class="grid2">

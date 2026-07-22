@@ -196,6 +196,11 @@ def init_db():
     if "witnesses_auto_at" not in cols:
         con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_auto_at TEXT")
         con.commit()
+    # Migration: date of birth (ISO YYYY-MM-DD), useful to rescuers (age).
+    ucols = [r["name"] for r in con.execute("PRAGMA table_info(users)").fetchall()]
+    if "data_nascita" not in ucols:
+        con.execute("ALTER TABLE users ADD COLUMN data_nascita TEXT")
+        con.commit()
 
     _seed_config(con)
     _seed_rules(con)
@@ -261,13 +266,13 @@ def create_user(username, password_hash, nome, cognome, **kwargs):
     cur = con.execute("""
         INSERT INTO users (username, password_hash, nome, cognome,
             telefono, emergenza_contatto, emergenza_telefono,
-            gruppo_sanguigno, note_salute, flarm_id, lingua, share_token, role)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            gruppo_sanguigno, note_salute, data_nascita, flarm_id, lingua, share_token, role)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         username, password_hash, nome, cognome,
         kwargs.get("telefono"), kwargs.get("emergenza_contatto"),
         kwargs.get("emergenza_telefono"), kwargs.get("gruppo_sanguigno"),
-        kwargs.get("note_salute"), kwargs.get("flarm_id"),
+        kwargs.get("note_salute"), kwargs.get("data_nascita"), kwargs.get("flarm_id"),
         kwargs.get("lingua", "it"), token,
         kwargs.get("role", "user"),
     ))
@@ -301,7 +306,7 @@ def get_user_by_share_token(token):
 def update_user_profile(user_id, **fields):
     allowed = {"nome", "cognome", "telefono", "emergenza_contatto",
                "emergenza_telefono", "gruppo_sanguigno", "note_salute",
-               "flarm_id", "lingua"}
+               "data_nascita", "flarm_id", "lingua"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return

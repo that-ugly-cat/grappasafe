@@ -7,6 +7,7 @@
     <label>{{ t('profile.name') }} <input type="text" name="nome" value="{{ user.nome }}" required></label>
     <label>{{ t('profile.surname') }} <input type="text" name="cognome" value="{{ user.cognome }}" required></label>
     <label>{{ t('profile.phone') }} <input type="tel" name="telefono" value="{{ user.telefono or '' }}"></label>
+    <label>{{ t('profile.dob') }} <input type="date" name="data_nascita" value="{{ user.data_nascita or '' }}"></label>
     <hr style="margin:1.2rem 0">
     <h4>{{ t('profile.emergencyContact') }}</h4>
     <label>{{ t('profile.contactName') }} <input type="text" name="emergenza_contatto" value="{{ user.emergenza_contatto or '' }}"></label>

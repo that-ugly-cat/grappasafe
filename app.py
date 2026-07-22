@@ -257,6 +257,8 @@ async def api_register(request: Request):
         gruppo_sanguigno=body.get("gruppo_sanguigno") or None,
         emergenza_contatto=body.get("emergenza_contatto") or None,
         emergenza_telefono=body.get("emergenza_telefono") or None,
+        note_salute=body.get("note_salute") or None,
+        data_nascita=body.get("data_nascita") or None,
         lingua=body.get("lingua", "it"),
     )
     request.session["user"] = {"id": uid}
@@ -268,7 +270,7 @@ async def api_register(request: Request):
 # unknown params are ignored, missing ones just stay blank. Password is never
 # accepted this way.
 _PREFILL_FIELDS = [
-    "username", "nome", "cognome", "telefono",
+    "username", "nome", "cognome", "telefono", "data_nascita",
     "emergenza_contatto", "emergenza_telefono",
     "gruppo_sanguigno", "note_salute", "lingua",
     "ogn_id", "device_name",
@@ -299,7 +301,7 @@ async def register_post(
     request: Request,
     username: str = Form(""), password: str = Form(""),
     nome: str = Form(""), cognome: str = Form(""),
-    telefono: str = Form(""),
+    telefono: str = Form(""), data_nascita: str = Form(""),
     emergenza_contatto: str = Form(""), emergenza_telefono: str = Form(""),
     gruppo_sanguigno: str = Form(""), note_salute: str = Form(""),
     lingua: str = Form("it"),
@@ -309,7 +311,7 @@ async def register_post(
     # Keep the submitted values to repopulate the form on error.
     form = {
         "username": username, "nome": nome, "cognome": cognome,
-        "telefono": telefono.strip(),
+        "telefono": telefono.strip(), "data_nascita": data_nascita.strip(),
         "emergenza_contatto": emergenza_contatto.strip(),
         "emergenza_telefono": emergenza_telefono.strip(),
         "gruppo_sanguigno": gruppo_sanguigno.strip(),
@@ -338,6 +340,7 @@ async def register_post(
         emergenza_telefono=form["emergenza_telefono"] or None,
         gruppo_sanguigno=form["gruppo_sanguigno"] or None,
         note_salute=form["note_salute"] or None,
+        data_nascita=form["data_nascita"] or None,
         lingua=lingua if lingua in webi18n.LANGS else "it",
     )
     # Optional OGN/FLARM device handed off from the partner site (or typed in).
@@ -492,7 +495,8 @@ async def profile_get(request: Request):
 async def profile_post(
     request: Request,
     nome: str = Form(...), cognome: str = Form(...),
-    telefono: str = Form(""), emergenza_contatto: str = Form(""),
+    telefono: str = Form(""), data_nascita: str = Form(""),
+    emergenza_contatto: str = Form(""),
     emergenza_telefono: str = Form(""), gruppo_sanguigno: str = Form(""),
     note_salute: str = Form(""), flarm_id: str = Form(""),
     lingua: str = Form("it"),
@@ -503,6 +507,7 @@ async def profile_post(
     db.update_user_profile(
         user["id"],
         nome=nome, cognome=cognome, telefono=telefono,
+        data_nascita=data_nascita,
         emergenza_contatto=emergenza_contatto,
         emergenza_telefono=emergenza_telefono,
         gruppo_sanguigno=gruppo_sanguigno,
@@ -945,6 +950,7 @@ async def api_me(request: Request):
         "emergenza_contatto": user.get("emergenza_contatto") or "",
         "emergenza_telefono": user.get("emergenza_telefono") or "",
         "note_salute":        user.get("note_salute") or "",
+        "data_nascita":       user.get("data_nascita") or "",
         "lingua":             user.get("lingua") or "it",
     })
 
@@ -961,7 +967,8 @@ async def api_update_me(request: Request):
     body = await request.json()
     fields = {}
     for k in ("nome", "cognome", "telefono", "gruppo_sanguigno",
-              "emergenza_contatto", "emergenza_telefono", "note_salute", "lingua"):
+              "emergenza_contatto", "emergenza_telefono", "note_salute",
+              "data_nascita", "lingua"):
         if k in body:
             v = body[k]
             fields[k] = v.strip() if isinstance(v, str) else v
