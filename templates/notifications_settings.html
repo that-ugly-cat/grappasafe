@@ -103,6 +103,56 @@
       <button class="btn-test" id="btn-test" onclick="saveAndTest()">Salva e invia prova</button>
     </div>
   </div>
+
+  <div class="card">
+    <h3>Email (SMTP)</h3>
+    <p class="subtitle" style="margin-bottom:1rem">Serve per il <b>recupero password</b> degli utenti (e per le email di notifica). Attiva entro 60 secondi, senza riavvio.</p>
+    <div class="field">
+      <div class="toggle">
+        <input type="checkbox" id="email_enabled" data-key="email_enabled" data-tipo="bool"
+               {{ 'checked' if (cfg.email_enabled.value if cfg.email_enabled else 'true') == 'true' else '' }}>
+        <label for="email_enabled" style="margin:0">Invia email (recupero password, notifiche)</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Host SMTP</label>
+      <input type="text" data-key="smtp_host" data-tipo="text" placeholder="smtp.esempio.com"
+             value="{{ cfg.smtp_host.value if cfg.smtp_host else '' }}">
+    </div>
+    <div class="field">
+      <label>Porta</label>
+      <input type="text" data-key="smtp_port" data-tipo="int" placeholder="587"
+             value="{{ cfg.smtp_port.value if cfg.smtp_port else '587' }}">
+    </div>
+    <div class="field">
+      <label>Utente</label>
+      <input type="text" data-key="smtp_user" data-tipo="text" placeholder="user@esempio.com"
+             value="{{ cfg.smtp_user.value if cfg.smtp_user else '' }}">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" data-key="smtp_pass" data-tipo="text"
+             value="{{ cfg.smtp_pass.value if cfg.smtp_pass else '' }}">
+    </div>
+    <div class="field">
+      <label>Mittente (From)</label>
+      <input type="text" data-key="smtp_from" data-tipo="text" placeholder="GrappaSafe &lt;no-reply@esempio.com&gt;"
+             value="{{ cfg.smtp_from.value if cfg.smtp_from else '' }}">
+      <div class="hint">Vuoto = usa l'utente SMTP.</div>
+    </div>
+    <div class="field">
+      <div class="toggle">
+        <input type="checkbox" id="smtp_tls" data-key="smtp_tls" data-tipo="bool"
+               {{ 'checked' if (cfg.smtp_tls.value if cfg.smtp_tls else 'true') == 'true' else '' }}>
+        <label for="smtp_tls" style="margin:0">Usa STARTTLS</label>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-save" onclick="saveAll()">Salva</button>
+      <button class="btn-test" onclick="saveAndTestEmail()">Salva e invia email di prova</button>
+    </div>
+    <div class="hint" style="margin-top:.5rem">L'email di prova viene inviata all'indirizzo del tuo profilo.</div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="info-overlay" onclick="closeInfoOnOverlay(event)">
@@ -154,6 +204,15 @@ async function saveAll() {
   try { if (await save()) flash('Configurazione salvata. Attiva entro 60s.', 'success'); }
   catch { flash('Errore di rete.', 'error'); }
   btn.disabled = false; btn.textContent = 'Salva';
+}
+async function saveAndTestEmail() {
+  try {
+    if (await save()) {
+      const r = await fetch('/admin/notifications/test-email', { method: 'POST' });
+      const d = await r.json();
+      flash(d.ok ? 'Email di prova inviata ✓' : ('Invio fallito: ' + (d.detail || '')), d.ok ? 'success' : 'error');
+    }
+  } catch { flash('Errore di rete.', 'error'); }
 }
 async function saveAndTest() {
   const btn = document.getElementById('btn-test'); btn.disabled = true; btn.textContent = 'Invio...';

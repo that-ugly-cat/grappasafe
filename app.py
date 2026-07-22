@@ -17,7 +17,8 @@ import uvicorn
 from auth import hash_password, verify_password, get_current_user, require_auth, require_admin, require_viewer
 from core.config import SECRET_KEY, AREA_LAT, AREA_LON, AREA_RADIUS_KM
 from core.notify import (
-    notify_emergency, notify_emergency_ack, notify_emergency_resolved, send_telegram_test,
+    notify_emergency, notify_emergency_ack, notify_emergency_resolved,
+    send_telegram_test, send_email_test, send_password_reset,
 )
 from core.ogn import ogn_worker
 from core.state_machine import SessionTracker, update_sm, impact_threshold
@@ -205,6 +206,32 @@ def _norm_email(e) -> str:
     return (e or "").strip().lower()
 
 
+# Password reset: a signed, self-expiring token (1h) that is also single-use —
+# it embeds a short hash of the current password hash, so once the password
+# changes the old token stops verifying. No token table to store or clean up.
+RESET_MAX_AGE_S = 3600
+_reset_signer = URLSafeTimedSerializer(SECRET_KEY, salt="password-reset")
+
+
+def _reset_pwkey(user) -> str:
+    import hashlib
+    return hashlib.sha256((user["password_hash"] or "").encode()).hexdigest()[:16]
+
+
+def _reset_verify(token):
+    """Return the user for a valid, unused reset token, or None."""
+    try:
+        data = _reset_signer.loads(token, max_age=RESET_MAX_AGE_S)
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(data, dict):
+        return None
+    user = db.get_user_by_id(data.get("uid"))
+    if not user or data.get("k") != _reset_pwkey(user):
+        return None
+    return user
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _home_for(user) -> str:
@@ -390,6 +417,58 @@ async def register_post(
 
     request.session["user"] = {"id": uid}
     return RedirectResponse("/me", status_code=303)
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+async def forgot_get(request: Request):
+    return templates.TemplateResponse(request, "forgot.html", {})
+
+
+@app.post("/forgot", response_class=HTMLResponse)
+async def forgot_post(request: Request, email: str = Form("")):
+    """Request a reset link. Responds the same whether or not the email exists,
+    so it never reveals which addresses are registered."""
+    email = _norm_email(email)
+    user = db.get_user_by_email(email) if email else None
+    if user and user.get("email"):
+        token = _reset_signer.dumps({"uid": user["id"], "k": _reset_pwkey(user)})
+        base = (db.get_config_value("public_base_url", "") or "").strip().rstrip("/") \
+            or str(request.base_url).rstrip("/")
+        send_password_reset(user["email"], f"{base}/reset/{token}", user.get("lingua") or "it")
+    return templates.TemplateResponse(request, "forgot.html", {"sent": True})
+
+
+@app.get("/reset/{token}", response_class=HTMLResponse)
+async def reset_get(request: Request, token: str):
+    if _reset_verify(token):
+        return templates.TemplateResponse(request, "reset.html", {"token": token})
+    return templates.TemplateResponse(request, "reset.html", {"invalid": True}, status_code=400)
+
+
+@app.post("/reset/{token}", response_class=HTMLResponse)
+async def reset_post(request: Request, token: str,
+                     password: str = Form(""), password2: str = Form("")):
+    user = _reset_verify(token)
+    if not user:
+        return templates.TemplateResponse(request, "reset.html", {"invalid": True}, status_code=400)
+    if len(password) < 6:
+        return templates.TemplateResponse(request, "reset.html",
+            {"token": token, "error": "La password deve avere almeno 6 caratteri"}, status_code=400)
+    if password != password2:
+        return templates.TemplateResponse(request, "reset.html",
+            {"token": token, "error": "Le password non coincidono"}, status_code=400)
+    db.update_user_password(user["id"], hash_password(password))
+    return templates.TemplateResponse(request, "reset.html", {"done": True})
+
+
+@app.post("/admin/notifications/test-email")
+async def admin_notifications_test_email(request: Request):
+    """Send a test email to the logged-in admin's own address."""
+    user, redir = require_admin(request)
+    if redir:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    ok, detail = send_email_test((user.get("email") or "").strip())
+    return JSONResponse({"ok": ok, "detail": detail})
 
 
 @app.get("/api/config")

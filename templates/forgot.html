@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block nav %}{% endblock %}
+{% block title %}Recupero password — GrappaSafe{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:2rem auto">
+  <div class="card">
+    <h2 style="margin-bottom:.6rem">Recupero password</h2>
+    {% if sent %}
+      <p style="color:#333;line-height:1.5">Se l'indirizzo è associato a un account, ti abbiamo inviato un'email con il link per reimpostare la password. Controlla anche lo spam.</p>
+      <p style="margin-top:1rem"><a href="/" style="color:#1a6a8a">← Torna al login</a></p>
+    {% else %}
+      <p style="color:#666;font-size:.92rem;margin-bottom:1rem">Inserisci l'email del tuo account: ti manderemo un link per scegliere una nuova password.</p>
+      <form method="post" action="/forgot">
+        <label>Email <input type="email" name="email" required autofocus></label>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Invia link di recupero</button>
+      </form>
+      <p style="margin-top:1rem;font-size:.9rem"><a href="/" style="color:#1a6a8a">← Torna al login</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

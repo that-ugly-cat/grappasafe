@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block nav %}{% endblock %}
+{% block title %}Nuova password — GrappaSafe{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:2rem auto">
+  <div class="card">
+    <h2 style="margin-bottom:.6rem">Nuova password</h2>
+    {% if invalid %}
+      <p style="color:#a3282f">Il link non è valido o è scaduto. Richiedine uno nuovo.</p>
+      <p style="margin-top:1rem"><a href="/forgot" style="color:#1a6a8a">Richiedi un nuovo link</a></p>
+    {% elif done %}
+      <p style="color:#1a6a1a">Password aggiornata. Ora puoi accedere con la nuova password.</p>
+      <p style="margin-top:1rem"><a href="/" style="color:#1a6a8a">← Vai al login</a></p>
+    {% else %}
+      {% if error %}<div style="background:#fdecea;border:1px solid #f5c6cb;color:#a3282f;padding:.6rem .8rem;border-radius:6px;margin-bottom:1rem;font-size:.92rem">{{ error }}</div>{% endif %}
+      <form method="post" action="/reset/{{ token }}">
+        <label>Nuova password <input type="password" name="password" required autofocus></label>
+        <label>Conferma password <input type="password" name="password2" required></label>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Imposta password</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

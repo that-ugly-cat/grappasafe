@@ -95,23 +95,103 @@ def send_telegram_test(text: str):
 
 # ── Email ─────────────────────────────────────────────────────────────────────
 
-def _send_email(subject: str, body: str) -> bool:
-    if not SMTP_HOST or not NOTIFY_EMAIL:
-        print("  [Email] SMTP non configurato — skip")
+def _smtp_conf():
+    """SMTP config from the DB, falling back to the env values."""
+    host = (_db.get_config_value("smtp_host", "") or SMTP_HOST or "").strip()
+    try:
+        port = int(_db.get_config_value("smtp_port", "") or SMTP_PORT or 587)
+    except (ValueError, TypeError):
+        port = SMTP_PORT or 587
+    user = (_db.get_config_value("smtp_user", "") or SMTP_USER or "").strip()
+    pw   = _db.get_config_value("smtp_pass", "") or SMTP_PASS or ""
+    frm  = (_db.get_config_value("smtp_from", "") or user or NOTIFY_EMAIL or "").strip()
+    tls  = (_db.get_config_value("smtp_tls", "true") or "true").lower() in ("true", "1", "yes")
+    enabled = (_db.get_config_value("email_enabled", "true") or "true").lower() in ("true", "1", "yes")
+    return host, port, user, pw, frm, tls, enabled
+
+
+def _send_email(subject: str, body: str, to: str = None) -> bool:
+    host, port, user, pw, frm, tls, enabled = _smtp_conf()
+    to = to or NOTIFY_EMAIL
+    if not enabled:
+        print("  [Email] disabilitato — skip")
+        return False
+    if not host or not to:
+        print("  [Email] SMTP o destinatario non configurati — skip")
         return False
     try:
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
-        msg["From"]    = SMTP_USER
-        msg["To"]      = NOTIFY_EMAIL
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASS)
+        msg["From"]    = frm or user
+        msg["To"]      = to
+        with smtplib.SMTP(host, port, timeout=15) as s:
+            if tls:
+                s.starttls()
+            if user and pw:
+                s.login(user, pw)
             s.send_message(msg)
         return True
     except Exception as e:
         print(f"  [Email] errore: {e}")
         return False
+
+
+def send_email_test(to: str):
+    """One-off test email for the admin panel. Returns (ok, detail)."""
+    host, *_rest = _smtp_conf()
+    if not host or not to:
+        return False, "Host SMTP o destinatario mancanti."
+    ok = _send_email("GrappaSafe — Email di prova",
+                     "Se leggi questo, l'SMTP di GrappaSafe è configurato correttamente.", to)
+    return ok, ("Email inviata." if ok else "Invio fallito — controlla host/porta/credenziali.")
+
+
+# Password-reset email, localized. {link} is substituted at send time.
+_RESET_MAIL = {
+    "it": ("GrappaSafe — Reimposta la password",
+           "Hai richiesto di reimpostare la password del tuo account GrappaSafe.\n\n"
+           "Apri questo link per scegliere una nuova password (valido 1 ora):\n{link}\n\n"
+           "Se non hai fatto questa richiesta, ignora questa email."),
+    "en": ("GrappaSafe — Reset your password",
+           "You asked to reset the password for your GrappaSafe account.\n\n"
+           "Open this link to choose a new password (valid for 1 hour):\n{link}\n\n"
+           "If you didn't request this, ignore this email."),
+    "de": ("GrappaSafe — Passwort zurücksetzen",
+           "Du hast angefordert, das Passwort deines GrappaSafe-Kontos zurückzusetzen.\n\n"
+           "Öffne diesen Link, um ein neues Passwort zu wählen (1 Stunde gültig):\n{link}\n\n"
+           "Wenn du das nicht angefordert hast, ignoriere diese E-Mail."),
+    "fr": ("GrappaSafe — Réinitialiser le mot de passe",
+           "Vous avez demandé à réinitialiser le mot de passe de votre compte GrappaSafe.\n\n"
+           "Ouvrez ce lien pour choisir un nouveau mot de passe (valide 1 heure) :\n{link}\n\n"
+           "Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail."),
+    "es": ("GrappaSafe — Restablecer la contraseña",
+           "Has solicitado restablecer la contraseña de tu cuenta de GrappaSafe.\n\n"
+           "Abre este enlace para elegir una nueva contraseña (válido 1 hora):\n{link}\n\n"
+           "Si no lo has solicitado, ignora este correo."),
+    "nl": ("GrappaSafe — Wachtwoord opnieuw instellen",
+           "Je hebt gevraagd om het wachtwoord van je GrappaSafe-account opnieuw in te stellen.\n\n"
+           "Open deze link om een nieuw wachtwoord te kiezen (1 uur geldig):\n{link}\n\n"
+           "Als je dit niet hebt aangevraagd, negeer deze e-mail."),
+    "pl": ("GrappaSafe — Zresetuj hasło",
+           "Poprosiłeś o zresetowanie hasła do swojego konta GrappaSafe.\n\n"
+           "Otwórz ten link, aby wybrać nowe hasło (ważny 1 godzinę):\n{link}\n\n"
+           "Jeśli to nie Ty, zignoruj tę wiadomość."),
+    "cs": ("GrappaSafe — Obnovit heslo",
+           "Požádali jste o obnovení hesla ke svému účtu GrappaSafe.\n\n"
+           "Otevřete tento odkaz a zvolte nové heslo (platí 1 hodinu):\n{link}\n\n"
+           "Pokud jste o to nežádali, tento e-mail ignorujte."),
+}
+
+
+def send_password_reset(to: str, link: str, lang: str = "it"):
+    """Send the reset link in the user's language, in a background thread."""
+    subject, body = _RESET_MAIL.get(lang, _RESET_MAIL["it"])
+    body = body.replace("{link}", link)
+
+    def _send():
+        _send_email(subject, body, to=to)
+
+    threading.Thread(target=_send, daemon=True).start()
 
 
 # ── Link + message builders ───────────────────────────────────────────────────

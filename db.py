@@ -247,6 +247,14 @@ def _seed_config(con):
          "ID del gruppo/chat Telegram dove inviare le notifiche"),
         ("public_base_url",    "",     "text",
          "URL pubblico del pannello (es. https://grappasafe.example.org), per il link nelle notifiche"),
+        # Email (SMTP) — for password recovery and admin email notifications.
+        ("email_enabled", "true", "bool", "Invia email (recupero password, notifiche)"),
+        ("smtp_host",     "",     "text", "Host SMTP (es. smtp.gmail.com)"),
+        ("smtp_port",     "587",  "int",  "Porta SMTP"),
+        ("smtp_user",     "",     "text", "Utente SMTP"),
+        ("smtp_pass",     "",     "text", "Password SMTP"),
+        ("smtp_from",     "",     "text", "Indirizzo mittente (From); vuoto = utente SMTP"),
+        ("smtp_tls",      "true", "bool", "Usa STARTTLS"),
     ):
         con.execute("""
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
