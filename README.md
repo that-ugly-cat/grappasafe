@@ -1,163 +1,170 @@
 <p align="center">
   <b>GrappaSafe</b><br>
-  <i>Outdoor safety monitoring for the Monte Grappa flying community.</i>
+  <i>Monitoraggio di sicurezza outdoor per la comunità del volo sul Monte Grappa.</i>
 </p>
 
 ---
 
-GrappaSafe tracks pilots and outdoor athletes across a 19 km radius around Monte Grappa
-and raises an alarm when something looks wrong. It merges two data sources — a mobile app
-(GPS + accelerometer) and the live OGN/FLARM APRS feed — so it covers both people running
-the app and any transponder-equipped aircraft in the area. When an emergency is detected it
-notifies the admins over Telegram and email with the subject's position and medical details.
+GrappaSafe segue piloti e sportivi outdoor in un raggio di 19 km attorno al Monte Grappa e
+lancia un allarme quando qualcosa non va. Fonde due sorgenti di dati — un'app mobile
+(GPS + accelerometro) e il feed APRS OGN/FLARM in tempo reale — così copre sia chi usa
+l'app sia qualsiasi mezzo con transponder nell'area. Quando rileva un'emergenza avvisa gli
+amministratori via Telegram ed email con posizione e dati medici della persona.
 
-The mobile client lives in a separate repo,
+Il client mobile sta in un repo separato,
 [grappasafe-mobile](https://github.com/that-ugly-cat/grappasafe-mobile) (React Native /
-Expo); this repo is the backend and the web panels it talks to.
+Expo); questo repo è il backend e i pannelli web con cui dialoga.
 
-## How it works
+## Come funziona
 
-The core is split in two:
+Il cuore è diviso in due:
 
-- **State machine** — a pure kinematic description of what an entity is doing
-  (`GROUND / AIRBORNE / DESCENDING_FAST / LANDED` in flight, `MOVING / STATIONARY / IMPACT`
-  on the ground). Transitions are confirmed over time, not per tick, so an uneven GPS
-  stream doesn't produce false positives.
-- **Emergency manager** — decides when a situation becomes an emergency, from the states
-  above and a set of thresholds editable at runtime from the admin UI.
+- **Macchina degli stati** — una descrizione puramente cinematica di cosa sta facendo
+  un'entità (`GROUND / AIRBORNE / DESCENDING_FAST / LANDED` in volo,
+  `MOVING / STATIONARY / IMPACT` a terra). Le transizioni sono confermate nel tempo, non a
+  ogni tick, così un flusso GPS irregolare non genera falsi positivi.
+- **Macchina delle emergenze** — decide quando una situazione diventa un'emergenza, a
+  partire dagli stati sopra e da soglie modificabili a runtime dal pannello admin.
 
-Emergency triggers:
+Trigger d'emergenza:
 
-- **Manual SOS** — the subject taps the button in the app. Fires immediately.
-- **Reserve chute** — a fast vertical descent (`DESCENDING_FAST`) into a landing. Fires
-  immediately.
-- **Impact** — a hard acceleration peak followed by staying put. Goes through a confirmation
-  window: the subject has a few minutes to cancel from the phone before the alarm is raised.
-- **Prolonged immobility** — motionless for a long time with no preceding impact. Same
-  confirmation window; off by default, since a long rest is usually just a rest.
+- **SOS manuale** — l'utente preme il pulsante nell'app. Scatta subito.
+- **Paracadute d'emergenza** — una discesa verticale rapida (`DESCENDING_FAST`) seguita da
+  atterraggio. Scatta subito.
+- **Impatto** — un picco di accelerazione forte seguito dallo stare fermi. Passa da una
+  finestra di conferma: l'utente ha qualche minuto per annullare dal telefono prima che
+  l'allarme parta.
+- **Immobilità prolungata** — fermo a lungo senza un impatto precedente. Stessa finestra di
+  conferma; disattivata di default, perché una lunga sosta di solito è solo una sosta.
 
-Across all of them:
+Trasversale a tutti:
 
-- **Immobility is decided by displacement** over a time window, not by instantaneous GPS
-  speed, so a jittery pin can't reset the timer. Points with poor accuracy are ignored, and
-  an impact is forgotten once the person walks away from the spot.
-- A background **sweep auto-confirms an unanswered pending** even if the phone stops sending
-  (a device that dies after an impact still gets the alarm opened server-side).
-- An operator can **take an emergency in charge** (acknowledge) before resolving it; the app
-  surfaces that to the person in distress. Resolving an emergency ends the subject's active
-  session.
+- **L'immobilità è decisa per spostamento** su una finestra temporale, non per velocità GPS
+  istantanea, così un pin ballerino non azzera il timer. I punti a bassa accuratezza sono
+  ignorati, e un impatto viene dimenticato appena la persona si allontana dal punto.
+- Uno **sweep in background auto-conferma un pending senza risposta** anche se il telefono
+  smette di trasmettere (un device che si spegne dopo un impatto ottiene comunque l'allarme
+  aperto lato server).
+- Un operatore può **prendere in carico** un'emergenza (acknowledge) prima di risolverla;
+  l'app lo segnala alla persona in difficoltà. La risoluzione chiude la sessione attiva del
+  soggetto.
 
-### App, OGN, and both
+### App, OGN e entrambe
 
-The two sources observe different things, so they raise different alarms and back each other up:
+Le due sorgenti osservano cose diverse, quindi alzano allarmi diversi e si coprono a vicenda:
 
-- **App (GPS + accelerometer).** The full set: manual SOS, reserve chute (confirmed by a
-  post-landing immobility check), impact (accelerometer, in flight and on the ground), and
-  prolonged immobility. Its vertical speed is derived from GPS altitude, so it is noisy —
-  there is no barometer.
-- **OGN / FLARM (APRS feed).** Reserve chute only. FLARM reports a clean vertical speed, so
-  the fast-descent detection is reliable even for a soft reserve — but there is no
-  accelerometer (no impact) and the beacons usually stop on the ground (no immobility check,
-  so the chute fires on the `DESCENDING_FAST → LANDED` transition itself).
-- **App + OGN (same pilot, device linked to the account).** Both nets run and complement each
-  other: OGN's clean vspeed catches a soft reserve the app's noisy GPS might miss, the app's
-  accelerometer catches a hard impact OGN cannot see. Only **one open emergency per person**
-  is kept — whichever source fires first wins and the other is **deduplicated by resolved
-  identity**. Impact is never fed into the OGN path: the two nets stay independent.
+- **App (GPS + accelerometro).** L'insieme completo: SOS manuale, paracadute (confermato da
+  un controllo di immobilità post-atterraggio), impatto (accelerometro, in volo e a terra) e
+  immobilità prolungata. La velocità verticale è derivata dalla quota GPS, quindi è rumorosa
+  — non c'è barometro.
+- **OGN / FLARM (feed APRS).** Solo paracadute. Il FLARM dà una velocità verticale pulita,
+  quindi il rilevamento della discesa rapida è affidabile anche per una riserva morbida — ma
+  non c'è accelerometro (niente impatto) e i beacon di solito cessano a terra (nessun
+  controllo di immobilità, quindi il paracadute scatta sulla transizione
+  `DESCENDING_FAST → LANDED` stessa).
+- **App + OGN (stesso pilota, device abbinato all'account).** Girano entrambe le reti e si
+  completano: la vspeed pulita dell'OGN prende una riserva morbida che il GPS rumoroso
+  dell'app potrebbe perdere, l'accelerometro dell'app prende un impatto duro che l'OGN non
+  vede. Si tiene **una sola emergenza aperta per persona** — vince la sorgente che scatta
+  prima e l'altra viene **deduplicata per identità risolta**. L'impatto non alimenta mai il
+  gate OGN: le due reti restano indipendenti.
 
-A configurable **horizontal-speed cap** on the fast-descent check keeps powered aircraft
-diving through the area from being mistaken for a reserve.
+Un **cap di velocità orizzontale** configurabile sul controllo di discesa rapida evita che
+un aeromobile in picchiata nell'area venga scambiato per una riserva.
 
-Altitude thresholds are computed above ground level using local SRTM1 tiles.
+Le soglie di quota sono calcolate rispetto al suolo (AGL) con le tile SRTM1 locali.
 
-**When an alarm fires**, the subject's identity, position and medical data (blood type,
-health notes, date of birth / age) go out over the configured channels — a Telegram group
-and email — and the emergency gets its own detail page, also shareable as a self-expiring
-24 h public link for rescuers who aren't users. A background job records **who else was
-tracked within 300 m at the time it happened** (app or OGN), so potential witnesses aren't
-lost to track retention. Every threshold mentioned above is editable at runtime from the
-admin **Stati** (state machine) and **Regole** (which trigger is on, per activity, immediate
-or with confirmation) pages, applied within 60 s with no restart.
+**Quando scatta un allarme**, identità, posizione e dati medici del soggetto (gruppo
+sanguigno, note salute, data di nascita / età) partono sui canali configurati — un gruppo
+Telegram ed email — e l'emergenza ha la sua scheda dedicata, condivisibile anche come link
+pubblico a scadenza (24 h) per soccorritori non registrati. Un job in background registra
+**chi altro era tracciato entro 300 m nel momento in cui è accaduto** (app o OGN), così i
+potenziali testimoni non si perdono con la retention delle tracce. Ogni soglia citata sopra
+è modificabile a runtime dalle pagine admin **Stati** (macchina degli stati) e **Regole**
+(quale trigger è attivo, per attività, immediato o con conferma), attive entro 60 s senza
+riavvio.
 
-## Features
+## Funzionalità
 
-- **Two sources merged**: mobile app and OGN/FLARM, resolved to the same identity through
-  per-user device linking, so an OGN emergency carries name, phone and medical info.
-- **Live admin dashboard**: Leaflet map with all active entities, colour-coded by activity
-  (blue for aerial, orange for ground), filters, and an open-emergencies panel. A
-  full-screen **new-emergency popup** appears on any admin page as soon as one comes in.
-- **Mobile app client**: public self-registration, profile self-edit, activity sessions
-  with background GPS, manual and automatic emergencies with a configurable message, an
-  **offline OpenTopoMap** of the monitored circle, and a live-tracking share link.
-- **User self-service**: from the web or the app, users manage their profile and link their
-  OGN/FLARM devices.
-- **Runtime configuration**: every state-machine / emergency threshold is editable from the
-  admin config page, applied within 60 s with no restart.
-- **Shareable live map**: a public `/map/{token}` URL that refreshes every 15 s.
-- **Notifications**: emergency **opened / acknowledged / resolved** pushed to a Telegram
-  group — salient details plus a link to the emergency page — and email on open (to one or
-  more recipients). Telegram and SMTP are configured entirely from the admin **Notifiche**
-  page and stored in the database; there are no notification env vars.
-- **Password recovery**: a signed, single-use, 1 h email link (`/forgot` → `/reset`) using
-  the same admin-configured SMTP; account email is required and unique.
-- **Witness search**: for each emergency, the subjects tracked within 300 m at the time it
-  happened (app or OGN, with a vertical filter for flying entities) are found and snapshotted
-  — on demand or automatically 10 minutes in — surviving track retention.
-- **Localised**: the mobile app and the user-facing web pages (`/me`, `/profile`, register)
-  are translated into 8 languages (it/en/de/fr/pl/nl/es/cs); the admin panels stay in Italian.
-- **Web registration**: a public `/register` page whose fields a partner site (e.g. a
-  fly-card portal) can pre-fill via query string — it takes whatever arrives.
-- **Calibration export**: recorded app + OGN tracks are browsable and exportable to Excel to
-  tune the detection thresholds from real data.
+- **Due sorgenti fuse**: app mobile e OGN/FLARM, ricondotte alla stessa identità tramite
+  l'abbinamento device per utente, così un'emergenza OGN porta nome, telefono e dati medici.
+- **Dashboard admin live**: mappa Leaflet con tutte le entità attive, colorate per attività
+  (blu per l'aereo, arancione per il terrestre), filtri e pannello emergenze aperte. Un
+  **popup a tutto schermo** avvisa di una nuova emergenza su qualsiasi pagina admin.
+- **Client mobile**: auto-registrazione pubblica, modifica profilo, sessioni di attività con
+  GPS in background, emergenze manuali e automatiche con messaggio configurabile, una
+  **OpenTopoMap offline** del cerchio monitorato e un link di tracking live condivisibile.
+- **Self-service utente**: da web o app, gli utenti gestiscono il profilo e abbinano i loro
+  device OGN/FLARM.
+- **Configurazione a runtime**: ogni soglia della macchina stati / emergenze è modificabile
+  dalla pagina admin, attiva entro 60 s senza riavvio.
+- **Mappa live condivisibile**: una URL pubblica `/map/{token}` che si aggiorna ogni 15 s.
+- **Notifiche**: emergenza **aperta / presa in carico / risolta** inviata a un gruppo
+  Telegram — elementi salienti più un link alla scheda — ed email all'apertura (a uno o più
+  destinatari). Telegram e SMTP si configurano interamente dalla pagina admin **Notifiche** e
+  sono salvati nel database; nessuna variabile d'ambiente per le notifiche.
+- **Recupero password**: un link email firmato, usa-e-getta, valido 1 h (`/forgot` →
+  `/reset`) via lo stesso SMTP configurato da admin; l'email dell'account è obbligatoria e
+  unica.
+- **Ricerca testimoni**: per ogni emergenza, i soggetti tracciati entro 300 m nel momento in
+  cui è accaduta (app o OGN, con filtro verticale per i volatili) vengono trovati e salvati —
+  a richiesta o automaticamente a +10 minuti — sopravvivendo alla retention delle tracce.
+- **Localizzazione**: l'app mobile e le pagine web rivolte all'utente (`/me`, `/profile`,
+  registrazione) sono tradotte in 8 lingue (it/en/de/fr/pl/nl/es/cs); i pannelli admin
+  restano in italiano.
+- **Registrazione web**: una pagina pubblica `/register` i cui campi un sito partner (es. il
+  portale della fly card) può precompilare via query string — prende quello che arriva.
+- **Export per taratura**: le tracce registrate (app + OGN) sono navigabili ed esportabili in
+  Excel per tarare le soglie di rilevamento su dati reali.
 
-## API for the app
+## API per l'app
 
-Under the session cookie, HTTPS: `POST /api/login`, `/api/register`, `GET`/`PUT /api/me`,
-`GET /api/config` (monitored area), `POST /api/session/{start,end,ok}` + `GET status`,
+Sotto cookie di sessione, HTTPS: `POST /api/login`, `/api/register`, `GET`/`PUT /api/me`,
+`GET /api/config` (area monitorata), `POST /api/session/{start,end,ok}` + `GET status`,
 `POST /api/gps`, `POST /api/emergency` + `/emergency/confirm` + `GET /api/emergency/status`,
-`GET /api/map/{token}` (public live track), and the offline tiles under `/map-tiles/`.
+`GET /api/map/{token}` (traccia live pubblica) e le tile offline sotto `/map-tiles/`.
 
-## Quick start
+## Avvio rapido
 
 ```bash
 git clone https://github.com/that-ugly-cat/grappasafe.git
 cd grappasafe
 pip install -r requirements.txt
-cp .env.example .env         # set SECRET_KEY (notifications are configured in the admin UI)
-python seed.py               # create the initial admin user
-./fetch_tiles.sh             # SRTM elevation tiles (~52 MB), for above-ground altitude
-python fetch_map_tiles.py    # optional: OpenTopoMap tiles for the app's offline map (~350 MB)
+cp .env.example .env         # imposta SECRET_KEY (le notifiche si configurano dal pannello admin)
+python seed.py               # crea l'utente admin iniziale
+./fetch_tiles.sh             # tile quota SRTM (~52 MB), per l'altitudine sul suolo
+python fetch_map_tiles.py    # opzionale: tile OpenTopoMap per la mappa offline dell'app (~350 MB)
 uvicorn app:app --reload
 ```
 
-Open http://localhost:8000/ and log in as the admin created by `seed.py`. The full schema
-and the default config/rules are created idempotently on startup (`CREATE TABLE IF NOT
-EXISTS` + `INSERT OR IGNORE` seeds) — the schema in `db.py` is the single source of truth,
-with no incremental migrations.
+Apri http://localhost:8000/ e accedi come admin creato da `seed.py`. Lo schema completo e i
+default di config/regole sono creati in modo idempotente all'avvio (`CREATE TABLE IF NOT
+EXISTS` + seed `INSERT OR IGNORE`) — lo schema in `db.py` è l'unica fonte di verità, senza
+migrazioni incrementali.
 
 ## Stack
 
-FastAPI · SQLite · Jinja2 · Leaflet. No build step. The OGN worker and the pending-sweep
-run in background threads inside the same process.
+FastAPI · SQLite · Jinja2 · Leaflet. Nessuno step di build. Il worker OGN e lo sweep dei
+pending girano in thread in background nello stesso processo.
 
 ```
-app.py              — routes: auth, GPS ingest, sessions, emergencies, admin, app API, map
-db.py               — SQLite schema, migrations and queries
-auth.py             — password hashing and session/role guards
-seed.py             — create the initial admin user
-fetch_tiles.sh      — download SRTM1 elevation tiles
-fetch_map_tiles.py  — prefetch OpenTopoMap tiles for the app's offline map
+app.py              — route: auth, ingest GPS, sessioni, emergenze, admin, API app, mappa
+db.py               — schema SQLite (senza migrazioni), seed e query
+auth.py             — hashing password e guard di sessione/ruolo
+seed.py             — crea l'utente admin iniziale
+fetch_tiles.sh      — scarica le tile quota SRTM1
+fetch_map_tiles.py  — pre-scarica le tile OpenTopoMap per la mappa offline dell'app
 core/
-  config.py         — environment configuration (monitoring area, secrets)
-  state_machine.py  — kinematic state machine (flight + ground)
-  emergency.py      — emergency manager, thresholds, config metadata
-  ogn.py            — OGN/APRS worker: area filter, flight SM, reserve-chute on landing
-  terrain.py        — SRTM1 tile reader for above-ground-level altitude
-  notify.py         — Telegram + email notifications
-webi18n.py          — translations for the user-facing web pages (/me, /profile)
-templates/          — dashboard, emergencies (list + detail + public link), users, state/
-                      emergency/notification settings, profile, me, register, forgot/reset,
-                      recorded tracks, public map, shared admin topbar
+  config.py         — configurazione da ambiente (area monitorata, segreti)
+  state_machine.py  — macchina degli stati cinematica (volo + terra)
+  emergency.py      — macchina delle emergenze, soglie, metadati di config
+  ogn.py            — worker OGN/APRS: filtro area, SM di volo, paracadute all'atterraggio
+  terrain.py        — lettore tile SRTM1 per la quota sul suolo (AGL)
+  notify.py         — notifiche Telegram + email
+webi18n.py          — traduzioni delle pagine web rivolte all'utente (/me, /profile)
+templates/          — dashboard, emergenze (lista + scheda + link pubblico), utenti,
+                      impostazioni stati/emergenze/notifiche, profilo, me, registrazione,
+                      forgot/reset, tracce registrate, mappa pubblica, topbar admin condivisa
 ```
 
-See [DEPLOY.md](DEPLOY.md) for production deployment.
+Vedi [DEPLOY.md](DEPLOY.md) per il deploy in produzione.
