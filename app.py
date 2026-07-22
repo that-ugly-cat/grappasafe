@@ -238,8 +238,14 @@ _GLYPHS_URL = "https://fonts.undpgeohub.org/fonts/{fontstack}/{range}.pbf"
 def vector_style(request: Request):
     if not os.path.exists(_OTM_LAYERS):
         raise HTTPException(status_code=503, detail="vector style not fetched")
+    # otm_layers.json è di fatto un file JS ("otm_layers = [ ... ];", caricato via
+    # <script> nella demo OTM), non JSON puro: estrai l'array tra le [] esterne.
     with open(_OTM_LAYERS, encoding="utf-8") as f:
-        layers = json.load(f)
+        raw = f.read()
+    start, end = raw.find("["), raw.rfind("]")
+    if start == -1 or end == -1:
+        raise HTTPException(status_code=500, detail="otm_layers.json malformed")
+    layers = json.loads(raw[start:end + 1])
     layers = [lyr for lyr in layers if lyr.get("source") not in _TERRAIN_SOURCES]
 
     base = (db.get_config_value("public_base_url", "") or "").strip().rstrip("/") \
