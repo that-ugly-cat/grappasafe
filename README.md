@@ -84,6 +84,21 @@ potenziali testimoni non si perdono con la retention delle tracce. Ogni soglia c
 (quale trigger è attivo, per attività, immediato o con conferma), attive entro 60 s senza
 riavvio.
 
+## Ruoli e permessi
+
+Tre livelli, applicati dai guard `require_auth` / `require_viewer` / `require_admin`:
+
+- **Utente** — manda i dati dall'app (GPS, accelerometro, SOS) e gestisce il proprio profilo
+  e i propri device OGN/FLARM da web (`/me`, `/profile`) o app. **Non** accede alla dashboard
+  né alle configurazioni.
+- **Observer** — accesso in **sola lettura** alla dashboard live e al recap emergenze; apre i
+  profili per contatti e dati medici; può **prendere in carico e risolvere** le emergenze
+  dalla scheda (con nota obbligatoria). **Non** modifica utenti né configurazioni.
+- **Admin** — accesso completo: dashboard, gestione emergenze, **utenti e ruoli**,
+  **configurazioni** (Stati, Regole, Notifiche) e tracce/export.
+
+Al login, admin e observer vanno alla dashboard, l'utente alla propria pagina.
+
 ## Funzionalità
 
 - **Due sorgenti fuse**: app mobile e OGN/FLARM, ricondotte alla stessa identità tramite
