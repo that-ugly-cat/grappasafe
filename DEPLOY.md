@@ -11,9 +11,10 @@ background thread, so there are no external services to run besides the app itse
 | `GRAPPASAFE_DB` | no | `grappasafe.db` | path to the SQLite file (`/data/grappasafe.db` in Docker) |
 | `AREA_LAT` / `AREA_LON` / `AREA_RADIUS_KM` | no | Monte Grappa, 19 km | monitoring area |
 | `APRS_USER` | no | `GSAFE1` | OGN/APRS receive callsign (passcode derived from it; keep it short and unique) |
-| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | no | empty | bootstrap fallback for Telegram; normally set from the admin **Notifiche** page instead (the DB values override env — see §6) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `NOTIFY_EMAIL` | no | empty | bootstrap fallback for email; normally set from the admin **Notifiche** page instead (§6) |
 | `ADMIN_USER` / `ADMIN_PASS` / `ADMIN_NOME` / `ADMIN_COGNOME` | no | `admin` / `changeme` | initial admin, created by `seed.py` |
+
+Telegram and email notifications are **not** env vars — they are configured from the admin
+**Notifiche** page and stored in the database (see §6).
 
 Generate a secret:
 
@@ -98,9 +99,9 @@ email. Configure Telegram from the admin **Notifiche** page (applied within 60 s
 - An **on/off toggle** mutes notifications without clearing the token.
 
 Email (used for the **password-reset** flow and, optionally, the emergency alert) is
-configured in the same page: SMTP server, sender, an on/off toggle, and the recipient for
-emergency emails, with a **Salva e invia email di prova** button. All of this lives in the
-database and overrides the `TELEGRAM_*` / `SMTP_*` / `NOTIFY_EMAIL` environment fallback.
+configured in the same page: SMTP server, sender, an on/off toggle, and one or more
+recipients for emergency emails (comma-separated), with a **Salva e invia email di prova**
+button. All notification settings live in the database — there are no notification env vars.
 
 ## 7. Updating
 

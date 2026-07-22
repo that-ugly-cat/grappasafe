@@ -148,10 +148,10 @@
       </div>
     </div>
     <div class="field">
-      <label>Email destinatario notifiche di emergenza</label>
-      <input type="text" data-key="notify_email" data-tipo="text" placeholder="soccorsi@esempio.com"
+      <label>Email destinatari notifiche di emergenza</label>
+      <input type="text" data-key="notify_email" data-tipo="text" placeholder="soccorsi@esempio.com, altro@esempio.com"
              value="{{ cfg.notify_email.value if cfg.notify_email else '' }}">
-      <div class="hint">Chi riceve l'email quando si apre un'emergenza. Il recupero password usa invece l'email dell'utente.</div>
+      <div class="hint">Uno o più indirizzi, separati da virgola. Ricevono l'email all'apertura di un'emergenza. Il recupero password usa invece l'email dell'utente.</div>
     </div>
     <div class="actions">
       <button class="btn-save" onclick="saveAll()">Salva</button>

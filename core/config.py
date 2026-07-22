@@ -24,14 +24,8 @@ AREA_RADIUS_KM = float(os.getenv("AREA_RADIUS_KM", "19.0"))
 APRS_USER   = os.getenv("APRS_USER", "GSAFE1")
 APRS_PASS   = aprs_passcode(APRS_USER)
 
-# Notifications
-TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-SMTP_HOST        = os.getenv("SMTP_HOST", "")
-SMTP_PORT        = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER        = os.getenv("SMTP_USER", "")
-SMTP_PASS        = os.getenv("SMTP_PASS", "")
-NOTIFY_EMAIL     = os.getenv("NOTIFY_EMAIL", "")
+# Notifications (Telegram + email/SMTP + recipients) are configured entirely
+# from the admin Notifiche page, stored in the config table — no env vars.
 
 # Web session
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")

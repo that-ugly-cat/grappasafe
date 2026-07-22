@@ -13,11 +13,9 @@ from email.mime.text import MIMEText
 
 import httpx
 
+import re
+
 import db as _db
-from core.config import (
-    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
-    SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, NOTIFY_EMAIL,
-)
 
 _TRIG = {
     "MANUAL":        "SOS manuale",
@@ -48,10 +46,9 @@ def _full_name(nome, cognome) -> str:
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def _tg_conf():
-    """Telegram config from the DB, falling back to the env values. Returns
-    (token, chat_id, enabled)."""
-    token   = (_db.get_config_value("telegram_bot_token", "") or TELEGRAM_TOKEN or "").strip()
-    chat    = (_db.get_config_value("telegram_chat_id", "") or TELEGRAM_CHAT_ID or "").strip()
+    """Telegram config from the DB. Returns (token, chat_id, enabled)."""
+    token   = (_db.get_config_value("telegram_bot_token", "") or "").strip()
+    chat    = (_db.get_config_value("telegram_chat_id", "") or "").strip()
     enabled = (_db.get_config_value("telegram_enabled", "true") or "true").lower() in ("true", "1", "yes")
     return token, chat, enabled
 
@@ -96,34 +93,39 @@ def send_telegram_test(text: str):
 # ── Email ─────────────────────────────────────────────────────────────────────
 
 def _smtp_conf():
-    """SMTP config from the DB, falling back to the env values."""
-    host = (_db.get_config_value("smtp_host", "") or SMTP_HOST or "").strip()
+    """SMTP config from the DB (no env fallback)."""
+    host = (_db.get_config_value("smtp_host", "") or "").strip()
     try:
-        port = int(_db.get_config_value("smtp_port", "") or SMTP_PORT or 587)
+        port = int(_db.get_config_value("smtp_port", "587") or 587)
     except (ValueError, TypeError):
-        port = SMTP_PORT or 587
-    user = (_db.get_config_value("smtp_user", "") or SMTP_USER or "").strip()
-    pw   = _db.get_config_value("smtp_pass", "") or SMTP_PASS or ""
-    frm  = (_db.get_config_value("smtp_from", "") or user or NOTIFY_EMAIL or "").strip()
+        port = 587
+    user = (_db.get_config_value("smtp_user", "") or "").strip()
+    pw   = _db.get_config_value("smtp_pass", "") or ""
+    frm  = (_db.get_config_value("smtp_from", "") or user or "").strip()
     tls  = (_db.get_config_value("smtp_tls", "true") or "true").lower() in ("true", "1", "yes")
     enabled = (_db.get_config_value("email_enabled", "true") or "true").lower() in ("true", "1", "yes")
     return host, port, user, pw, frm, tls, enabled
 
 
+def _recipients(raw: str) -> list:
+    """Split one or more addresses separated by comma, semicolon or newline."""
+    return [a.strip() for a in re.split(r"[,;\n]+", raw or "") if a.strip()]
+
+
 def _send_email(subject: str, body: str, to: str = None) -> bool:
     host, port, user, pw, frm, tls, enabled = _smtp_conf()
-    to = to or (_db.get_config_value("notify_email", "") or NOTIFY_EMAIL)
+    recips = _recipients(to if to is not None else _db.get_config_value("notify_email", ""))
     if not enabled:
         print("  [Email] disabilitato — skip")
         return False
-    if not host or not to:
+    if not host or not recips:
         print("  [Email] SMTP o destinatario non configurati — skip")
         return False
     try:
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
         msg["From"]    = frm or user
-        msg["To"]      = to
+        msg["To"]      = ", ".join(recips)
         with smtplib.SMTP(host, port, timeout=15) as s:
             if tls:
                 s.starttls()
@@ -139,7 +141,7 @@ def _send_email(subject: str, body: str, to: str = None) -> bool:
 def send_email_test(to: str):
     """One-off test email for the admin panel. Returns (ok, detail)."""
     host, *_rest = _smtp_conf()
-    if not host or not to:
+    if not host or not _recipients(to):
         return False, "Host SMTP o destinatario mancanti."
     ok = _send_email("GrappaSafe — Email di prova",
                      "Se leggi questo, l'SMTP di GrappaSafe è configurato correttamente.", to)
@@ -272,7 +274,8 @@ def _dispatch(emergency_id: int, event: str):
         if event == "opened":
             subject = f"EMERGENZA GrappaSafe — {em.get('nome','')} {em.get('cognome','')}".strip()
             ok_mail = _send_email(subject, text)
-            _db.log_notification(emergency_id, "EMAIL", NOTIFY_EMAIL, ok_mail)
+            _db.log_notification(emergency_id, "EMAIL",
+                                 _db.get_config_value("notify_email", "") or "-", ok_mail)
 
     threading.Thread(target=_send, daemon=True).start()
 
