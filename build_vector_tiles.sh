@@ -15,9 +15,11 @@
 # (dal DEM SRTM in tiles/) e glyphs/sprite/stile arrivano negli incrementi 2-3.
 #
 # --- Dipendenze sul VPS (una tantum) -----------------------------------------
-#   tilemaker   — https://github.com/systemed/tilemaker  (apt: tilemaker, o build)
+#   tilemaker   — RECENTE, buildato da sorgente. La versione apt è troppo vecchia
+#                 per la config/lua di OpenTopoMap (mancano Holds() e
+#                 --shard-stores). https://github.com/systemed/tilemaker#compiling
 #   osmium      — apt install osmium-tool
-#   wget, git, python3 (già presenti)
+#   wget, python3 (già presenti)
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
