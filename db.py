@@ -38,12 +38,19 @@ def init_db():
             emergenza_telefono  TEXT,
             gruppo_sanguigno    TEXT,
             note_salute         TEXT,
+            data_nascita        TEXT,
+            email               TEXT,
             flarm_id            TEXT UNIQUE,
             lingua              TEXT NOT NULL DEFAULT 'it',
             share_token         TEXT UNIQUE NOT NULL,
             role                TEXT NOT NULL DEFAULT 'user',
             created_at          TEXT DEFAULT (datetime('now'))
         );
+
+        -- Email uniqueness only for non-null values (email is optional on
+        -- accounts created before it existed / by an admin).
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+            ON users(email COLLATE NOCASE) WHERE email IS NOT NULL;
 
         CREATE TABLE IF NOT EXISTS sessions (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +111,9 @@ def init_db():
             acknowledged_by INTEGER REFERENCES users(id),
             resolved_at     TEXT,
             resolved_by     INTEGER REFERENCES users(id),
-            note            TEXT
+            note            TEXT,
+            witnesses_at      TEXT,   -- when the witness search was last run
+            witnesses_auto_at TEXT    -- when the automatic (+10 min) run fired
         );
 
         CREATE TABLE IF NOT EXISTS notification_log (
@@ -174,42 +183,6 @@ def init_db():
     """)
     con.commit()
 
-    # Migration: link an emergency directly to its user, so a manual SOS
-    # without an active session still carries the subject's identity.
-    cols = [r["name"] for r in con.execute("PRAGMA table_info(emergencies)").fetchall()]
-    if "user_id" not in cols:
-        con.execute("ALTER TABLE emergencies ADD COLUMN user_id INTEGER REFERENCES users(id)")
-        con.commit()
-    # Migration: an operator can take an emergency in charge (acknowledge)
-    # before resolving it, so the person in distress gets a "seen" signal.
-    if "acknowledged_at" not in cols:
-        con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_at TEXT")
-        con.execute("ALTER TABLE emergencies ADD COLUMN acknowledged_by INTEGER REFERENCES users(id)")
-        con.commit()
-    # Migration: remember when the witness search was last run, so the page can
-    # tell "no witnesses found" apart from "never searched".
-    if "witnesses_at" not in cols:
-        con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_at TEXT")
-        con.commit()
-    # Migration: track the automatic run separately from any manual one, so a
-    # preliminary manual click does not cancel the +10 min auto search.
-    if "witnesses_auto_at" not in cols:
-        con.execute("ALTER TABLE emergencies ADD COLUMN witnesses_auto_at TEXT")
-        con.commit()
-    # Migration: date of birth (ISO YYYY-MM-DD), useful to rescuers (age).
-    ucols = [r["name"] for r in con.execute("PRAGMA table_info(users)").fetchall()]
-    if "data_nascita" not in ucols:
-        con.execute("ALTER TABLE users ADD COLUMN data_nascita TEXT")
-        con.commit()
-    # Migration: email address. SQLite can't ADD COLUMN ... UNIQUE, so uniqueness
-    # is enforced by a partial unique index (only for non-null emails, leaving
-    # existing email-less accounts untouched).
-    if "email" not in ucols:
-        con.execute("ALTER TABLE users ADD COLUMN email TEXT")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email "
-                    "ON users(email COLLATE NOCASE) WHERE email IS NOT NULL")
-        con.commit()
-
     _seed_config(con)
     _seed_rules(con)
     con.close()
@@ -225,16 +198,15 @@ def _seed_config(con):
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (key, value, tipo, macchina, categoria, descrizione))
-    # Message shown on the user's phone while an emergency is open (editable
-    # from the admin config panel; the app also caches it and has a fallback).
+    # Optional custom message shown on the user's phone while an emergency is
+    # open. Empty by default: the app then shows its own message, translated in
+    # the app's language. Set here to override with a fixed (single-language) text.
     con.execute("""
         INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (
-        "emergency_user_message",
-        "Resta dove sei, i soccorsi sono in arrivo.",
-        "text", "APP", "app",
-        "Messaggio mostrato sul telefono durante un'emergenza in corso",
+        "emergency_user_message", "", "text", "NOTIFY", "notifiche",
+        "Messaggio mostrato sul telefono durante un'emergenza (vuoto = predefinito tradotto)",
     ))
     # Telegram emergency notifications, editable from the admin panel. Left
     # empty by default: nothing is sent until an admin fills token + chat id.

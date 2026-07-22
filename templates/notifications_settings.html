@@ -159,6 +159,19 @@
     </div>
     <div class="hint" style="margin-top:.5rem">L'email di prova viene inviata all'indirizzo del tuo profilo.</div>
   </div>
+
+  <div class="card">
+    <h3>Messaggio in emergenza (app)</h3>
+    <p class="subtitle" style="margin-bottom:1rem">Testo mostrato sul telefono dell'utente mentre un'emergenza è aperta. <b>Lascia vuoto</b> per usare il messaggio predefinito, tradotto nella lingua dell'app. Compilalo solo per forzare un testo fisso (in una lingua sola).</p>
+    <div class="field">
+      <input type="text" data-key="emergency_user_message" data-tipo="text"
+             placeholder="(vuoto = messaggio predefinito tradotto)"
+             value="{{ cfg.emergency_user_message.value if cfg.emergency_user_message else '' }}">
+    </div>
+    <div class="actions">
+      <button class="btn-save" onclick="saveAll()">Salva</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="info-overlay" onclick="closeInfoOnOverlay(event)">

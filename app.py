@@ -1011,7 +1011,7 @@ async def emergency_manual(request: Request):
         )
         notify_emergency(eid)
 
-    msg = db.get_config_value("emergency_user_message", "Resta dove sei, i soccorsi sono in arrivo.")
+    msg = db.get_config_value("emergency_user_message", "")
     return JSONResponse({"ok": True, "message": msg})
 
 
@@ -1026,7 +1026,7 @@ async def api_emergency_status(request: Request):
     if not user:
         return JSONResponse({"error": "not authenticated"}, status_code=401)
     em = db.get_open_emergency_for_user(user["id"])
-    msg = db.get_config_value("emergency_user_message", "Resta dove sei, i soccorsi sono in arrivo.")
+    msg = db.get_config_value("emergency_user_message", "")
     if not em:
         return JSONResponse({"active": False, "message": msg})
     return JSONResponse({
@@ -1258,7 +1258,9 @@ async def admin_notifications_settings(request: Request):
     user, redir = require_admin(request)
     if redir:
         return redir
-    cfg = {r["key"]: r for r in db.get_all_config() if r["macchina"] == "NOTIFY"}
+    # Keyed by name (all config) so the notification fields resolve regardless
+    # of a row's machine tag, e.g. emergency_user_message on older databases.
+    cfg = {r["key"]: r for r in db.get_all_config()}
     return templates.TemplateResponse(request, "notifications_settings.html", {
         "user": user, "cfg": cfg,
     })
