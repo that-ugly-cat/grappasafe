@@ -9,8 +9,7 @@ silent for longer than cfg.max_gap_s the streak timestamps are cleared,
 since silence means we can't trust the last known condition.
 
 Flight (PARAGLIDER, HANGGLIDER):
-    GROUND -> AIRBORNE -> DESCENDING_FAST -> LANDED
-                       -> LANDED (normal landing)
+    GROUND -> AIRBORNE -> LANDED
 
 Ground (CYCLIST, CLIMBER, HIKER, RUNNER, OTHER_ON_GROUND):
     MOVING <-> STATIONARY
@@ -32,7 +31,6 @@ GROUND_ACTIVITIES = {"CYCLIST", "CLIMBER", "HIKER", "RUNNER", "OTHER_ON_GROUND"}
 class FlightState(str, Enum):
     GROUND          = "GROUND"
     AIRBORNE        = "AIRBORNE"
-    DESCENDING_FAST = "DESCENDING_FAST"   # fast descent, possible reserve chute
     LANDED          = "LANDED"
 
 
@@ -54,7 +52,6 @@ class SessionTracker:
     # cleared when it breaks or when the transition fires.
     takeoff_since:    Optional[datetime] = None
     landing_since:    Optional[datetime] = None
-    descending_since: Optional[datetime] = None
 
     # Ground streak timestamp.
     stationary_since: Optional[datetime] = None
@@ -74,7 +71,6 @@ class OgnTracker:
     last_seen:       Optional[datetime] = None
     takeoff_since:   Optional[datetime] = None
     landing_since:   Optional[datetime] = None
-    descending_since: Optional[datetime] = None
     linked_user_id:  Optional[int] = None
 
     # Reserve-chute watch (OGN, no accelerometer). Managed by ogn_chute_step in
@@ -93,7 +89,7 @@ class OgnTracker:
 
 def _reset_streaks(tracker) -> None:
     """Clear all streak timestamps after a GPS gap."""
-    for attr in ("takeoff_since", "landing_since", "descending_since", "stationary_since"):
+    for attr in ("takeoff_since", "landing_since", "stationary_since"):
         if hasattr(tracker, attr):
             setattr(tracker, attr, None)
 
@@ -142,7 +138,6 @@ def update_ogn_sm(tracker: OgnTracker, beacon: dict, cfg: "EmConfig") -> bool:
         now=now,
         alt_m=beacon.get("alt_m") or 0.0,
         speed_kmh=beacon.get("speed_kmh") or 0.0,
-        vspeed_ms=beacon.get("vspeed_ms") or 0.0,
         cfg=cfg,
     )
     return tracker.state != old_state
@@ -157,13 +152,12 @@ def _update_flight(tracker: SessionTracker, point: dict, cfg: "EmConfig", now: d
         now=now,
         alt_m=point.get("alt_m") or 0.0,
         speed_kmh=point.get("speed_kmh") or 0.0,
-        vspeed_ms=point.get("vspeed_ms") or 0.0,
         cfg=cfg,
     )
 
 
 def _update_flight_generic(state, set_state, get_since, set_since, now,
-                            alt_m, speed_kmh, vspeed_ms, cfg):
+                            alt_m, speed_kmh, cfg):
     """Flight logic shared by SessionTracker and OgnTracker."""
 
     if state == FlightState.GROUND:
@@ -179,34 +173,7 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
         return
 
     if state == FlightState.AIRBORNE:
-        # Fast descent check (reserve chute). A reserve comes down fast vertically
-        # but slow horizontally, so cap the horizontal speed to exclude aircraft.
-        if vspeed_ms <= cfg.descending_vspeed_ms and speed_kmh <= cfg.descending_max_speed_kmh:
-            since = get_since("descending_since")
-            if since is None:
-                set_since("descending_since", now)
-            elif (now - since).total_seconds() >= cfg.descending_confirm_s:
-                set_state(FlightState.DESCENDING_FAST)
-                set_since("descending_since", None)
-                set_since("landing_since", None)   # invalidate any landing streak
-                return
-        else:
-            set_since("descending_since", None)
-
-        # Normal landing check.
-        if speed_kmh <= cfg.landing_speed_kmh and alt_m <= cfg.landing_alt_m:
-            since = get_since("landing_since")
-            if since is None:
-                set_since("landing_since", now)
-            elif (now - since).total_seconds() >= cfg.landing_confirm_s:
-                set_state(FlightState.LANDED)
-                set_since("landing_since", None)
-        else:
-            set_since("landing_since", None)
-        return
-
-    if state == FlightState.DESCENDING_FAST:
-        # Wait for landing.
+        # Landing check.
         if speed_kmh <= cfg.landing_speed_kmh and alt_m <= cfg.landing_alt_m:
             since = get_since("landing_since")
             if since is None:

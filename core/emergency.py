@@ -35,12 +35,11 @@ class EmConfig:
     takeoff_alt_m:        float = 30.0   # alternative takeoff altitude
     takeoff_confirm_s:    float = 45.0   # seconds in condition to confirm
     landing_speed_kmh:    float = 10.0   # maximum landing speed
-    landing_alt_m:        float = 30.0   # maximum landing altitude
+    landing_alt_m:        float = 50.0   # maximum landing altitude (forgiving of
+    #   SRTM error and ridge top-landings; feeds the descriptive LANDED state)
     landing_confirm_s:    float = 45.0   # seconds in condition to confirm
-    descending_vspeed_ms: float = -8.0   # vspeed below this -> DESCENDING_FAST
-    descending_confirm_s: float = 10.0   # seconds in condition to confirm
-    descending_max_speed_kmh: float = 50.0  # horizontal speed cap: a reserve
-    #   descent is slow horizontally; excludes fast aircraft diving through
+    descending_max_speed_kmh: float = 50.0  # OGN reserve arm: horizontal speed cap
+    #   (a reserve descent is slow horizontally; excludes fast aircraft)
 
     # Ground thresholds
     moving_speed_kmh:     float = 2.0    # below this the entity is not moving
@@ -77,17 +76,16 @@ class EmConfig:
     impact_recovery_s:    float = 120.0  # motionless after impact -> AUTO_IMPACT
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
 
-    # Reserve-chute immobility window (displacement-based). Confirms the chute
-    # emergency once the pilot has stayed within immobile_radius_m this long.
-    # Shared by the app path (after DESCENDING_FAST -> LANDED) and the OGN Path 1
-    # (after a sustained reserve-rate descent).
+    # Reserve-chute immobility window (displacement-based): confirms the OGN
+    # reserve emergency once the pilot has stayed within immobile_radius_m this
+    # long (Path 1).
     chute_immobile_s:     float = 120.0
 
     # OGN reserve-chute detection (no accelerometer). A reserve canopy comes down
-    # at ~5-6 m/s, below the SM's DESCENDING_FAST gate (-8): detect it directly on
-    # the clean FLARM vspeed. Arms on a *sustained* descent that does not recover
-    # to normal flight (a B-stall / intentional spiral has the same rate but flies
-    # back out).
+    # at ~5-6 m/s — a moderate, sustained sink the kinematic landing states don't
+    # single out. Detect it directly on the clean FLARM vspeed: arm on a
+    # *sustained* descent that does not recover to normal flight (a B-stall or an
+    # intentional spiral has the same rate but flies back out).
     chute_arm_vspeed_ms:     float = -5.0   # vspeed at/below this suspects a reserve
     chute_recover_vspeed_ms: float = -2.0   # vspeed above this = back to normal flight
     chute_confirm_s:         float = 8.0    # seconds at reserve rate to arm (or to recover)
@@ -206,10 +204,10 @@ def _latest_good(recent, cfg: EmConfig):
 def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
     """Flight, app side (GPS + accelerometer): a hard impact followed by
     immobility. There is no app reserve-chute net — a reserve comes down at
-    ~5-6 m/s, below the SM's fast-descent gate, and the phone's GPS-derived
-    vspeed is too noisy to detect it; a hard reserve landing is caught by the
-    impact net and the rest by MANUAL. The reserve/signal-lost nets live on the
-    OGN side, on the clean FLARM vspeed (see ogn_chute_step)."""
+    ~5-6 m/s, a moderate sink the phone's noisy GPS-derived vspeed can't reliably
+    tell from normal flight; a hard reserve landing is caught by the impact net
+    and the rest by MANUAL. The reserve/signal-lost nets live on the OGN side, on
+    the clean FLARM vspeed (see ogn_chute_step)."""
     return _impact_immobile(ctx, cfg, rules, now)
 
 
@@ -379,8 +377,6 @@ CONFIG_META = [
     ("landing_speed_kmh",    "SM", "volo", "Velocità massima atterraggio (km/h)",                "float"),
     ("landing_alt_m",        "SM", "volo", "Quota AGL massima atterraggio (m)",                  "float"),
     ("landing_confirm_s",    "SM", "volo", "Secondi in condizione atterraggio per confermare",   "float"),
-    ("descending_vspeed_ms", "SM", "volo", "Velocità verticale soglia discesa rapida (m/s, negativo)", "float"),
-    ("descending_confirm_s", "SM", "volo", "Secondi in discesa rapida per confermare",           "float"),
     ("descending_max_speed_kmh", "SM", "volo", "Velocità orizzontale max per discesa paracadute (km/h, esclude aeromobili)", "float"),
 
     # State machine — ground
@@ -417,6 +413,11 @@ CONFIG_META = [
     ("gps_accuracy_max_m",   "SM", "comune", "Accuratezza GPS oltre cui il punto è ignorato per l'immobilità (m)", "float"),
     ("pending_timeout_s",    "EM", "terrestre", "Secondi per confermare/annullare dal telefono (poi auto-confirm)", "float"),
 ]
+
+
+# Config keys removed over time: deleted from the config table on seed so they
+# do not linger as dead, editable rows on an existing database.
+RETIRED_CONFIG_KEYS = ["descending_vspeed_ms", "descending_confirm_s"]
 
 
 # Default emergency rules, seeded into the emergency_rules table.

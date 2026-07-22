@@ -20,7 +20,7 @@ Expo); questo repo è il backend e i pannelli web con cui dialoga.
 Il cuore è diviso in due:
 
 - **Macchina degli stati** — una descrizione puramente cinematica di cosa sta facendo
-  un'entità (`GROUND / AIRBORNE / DESCENDING_FAST / LANDED` in volo,
+  un'entità (`GROUND / AIRBORNE / LANDED` in volo,
   `MOVING / STATIONARY / IMPACT` a terra). Le transizioni sono confermate nel tempo, non a
   ogni tick, così un flusso GPS irregolare non genera falsi positivi.
 - **Macchina delle emergenze** — decide quando una situazione diventa un'emergenza, a
@@ -74,7 +74,7 @@ Le due sorgenti osservano cose diverse, quindi alzano allarmi diversi e si copro
   dalla quota GPS, rumorosa — un motivo in più per non fondarci un rilevamento di discesa.
 - **OGN / FLARM (feed APRS).** Paracadute e segnale-perso. Il FLARM dà una velocità verticale
   pulita, quindi la discesa a rateo-paracadute è affidabile anche per una riserva morbida
-  (~5-6 m/s, che il gate della discesa *rapida* a -8 m/s non prenderebbe). Riconosciuta la
+  (~5-6 m/s, un sink moderato che gli stati di volo non distinguono). Riconosciuta la
   discesa, l'emergenza si chiude in due modi: se i beacon proseguono — al Grappa se ne
   ricevono anche da terra — e il soggetto resta immobile entro ~50 m → **paracadute**
   confermato; se invece il beacon si perde vicino a terra → **segnale-perso** dopo l'attesa.

@@ -193,7 +193,7 @@ def _seed_config(con):
     metadata (type/machine/category/description) in sync with CONFIG_META on every
     start — the value stays as the admin set it, but a reclassified or re-described
     parameter is realigned even on an existing database."""
-    from core.emergency import EmConfig, CONFIG_META
+    from core.emergency import EmConfig, CONFIG_META, RETIRED_CONFIG_KEYS
     defaults = EmConfig()
     for key, macchina, categoria, descrizione, tipo in CONFIG_META:
         value = str(getattr(defaults, key))
@@ -207,6 +207,10 @@ def _seed_config(con):
             UPDATE config SET tipo=?, macchina=?, categoria=?, descrizione=?
             WHERE key=?
         """, (tipo, macchina, categoria, descrizione, key))
+    # Drop config rows for parameters that no longer exist, so they don't linger
+    # as dead, editable rows on an existing database.
+    for key in RETIRED_CONFIG_KEYS:
+        con.execute("DELETE FROM config WHERE key=?", (key,))
     # Optional custom in-emergency message shown on the user's phone, one per
     # language. Empty by default: the app then shows its own translated text for
     # that language. The server sends the row matching the user's language.
