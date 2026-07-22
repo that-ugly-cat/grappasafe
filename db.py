@@ -189,7 +189,10 @@ def init_db():
 
 
 def _seed_config(con):
-    """Insert the default config values if they are not present yet."""
+    """Insert the default config values if they are not present yet, and keep the
+    metadata (type/machine/category/description) in sync with CONFIG_META on every
+    start — the value stays as the admin set it, but a reclassified or re-described
+    parameter is realigned even on an existing database."""
     from core.emergency import EmConfig, CONFIG_META
     defaults = EmConfig()
     for key, macchina, categoria, descrizione, tipo in CONFIG_META:
@@ -198,6 +201,12 @@ def _seed_config(con):
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (key, value, tipo, macchina, categoria, descrizione))
+        # Keep the metadata (not the value) in sync with CONFIG_META, so a
+        # reclassified or re-described parameter realigns on existing DBs too.
+        con.execute("""
+            UPDATE config SET tipo=?, macchina=?, categoria=?, descrizione=?
+            WHERE key=?
+        """, (tipo, macchina, categoria, descrizione, key))
     # Optional custom in-emergency message shown on the user's phone, one per
     # language. Empty by default: the app then shows its own translated text for
     # that language. The server sends the row matching the user's language.

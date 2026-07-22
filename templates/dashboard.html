@@ -65,9 +65,7 @@
     .badge-IMMOBILE       { background: #7a6a1a; color: white; }
     .badge-IMPACT         { background: #a05010; color: white; }
     .badge-EMERGENCY      { background: #a01020; color: white; animation: pulse 1s infinite; }
-    .badge-EMERGENCY_CHUTE { background: #c05000; color: white; }
     .badge-LANDED         { background: #2a6a2a; color: white; }
-    .badge-CRASH_LANDED   { background: #a03000; color: white; }
     .badge-UNKNOWN        { background: #3a3a3a; color: #aaa; }
     .badge-source-APP { background: #1a5a8a; color: white; font-size: .65rem; }
     .badge-source-OGN { background: #4a2a8a; color: white; font-size: .65rem; }
@@ -242,9 +240,9 @@ function emergIcon() {
 }
 
 function entityIcon(e) {
-  if (e.state === 'EMERGENCY' || e.state === 'CRASH_LANDED') return emergIcon();
+  if (e.state === 'EMERGENCY') return emergIcon();
   const color = activityColor(e.attivita);
-  if (e.state === 'AIRBORNE' || e.state === 'EMERGENCY_CHUTE') return arrowIcon(e.course_deg, color);
+  if (e.state === 'AIRBORNE') return arrowIcon(e.course_deg, color);
   return circleIcon(color);
 }
 
@@ -285,7 +283,7 @@ function filteredEntities() {
   return entities.filter(e => {
     // known activities show only if their chip is on; unmapped ones always show
     if (KNOWN_ACT.has(e.attivita) && !sel.has(e.attivita)) return false;
-    if (emergOnly && e.state !== 'EMERGENCY' && e.state !== 'CRASH_LANDED') return false;
+    if (emergOnly && e.state !== 'EMERGENCY') return false;
     return true;
   });
 }

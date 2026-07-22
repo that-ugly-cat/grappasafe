@@ -29,11 +29,11 @@ Il cuore è diviso in due:
 Trigger d'emergenza:
 
 - **SOS manuale** — l'utente preme il pulsante nell'app. Scatta subito.
-- **Paracadute d'emergenza** — una discesa **sostenuta a rateo-paracadute** (~5 m/s o più,
-  che *non rientra* in volo normale) seguita da **immobilità**: sceso col paracadute e poi
-  fermo, a terra o appeso. Non è più agganciato al raggiungere un atterraggio "pulito"
-  (lento + basso + stabile): un pilota trascinato dalla vela o impigliato non ci arriverebbe
-  mai, ed è proprio il caso che conta. Scatta subito.
+- **Paracadute d'emergenza** *(solo OGN)* — una discesa **sostenuta a rateo-paracadute**
+  (~5 m/s o più, che *non rientra* in volo normale) seguita da **immobilità**: sceso col
+  paracadute e poi fermo, a terra o appeso. Non è agganciato al raggiungere un atterraggio
+  "pulito" (lento + basso + stabile): un pilota trascinato dalla vela o impigliato non ci
+  arriverebbe mai, ed è proprio il caso che conta. Scatta subito.
 - **Segnale perso dopo discesa** — solo OGN. Il beacon FLARM di norma cessa prima del suolo,
   quindi quando *non* possiamo confermare l'immobilità: una discesa a rateo-paracadute
   seguita dalla perdita del beacon vicino a terra. Si aspetta una finestra breve (~2 min) un
@@ -67,10 +67,11 @@ Trasversale a tutti:
 
 Le due sorgenti osservano cose diverse, quindi alzano allarmi diversi e si coprono a vicenda:
 
-- **App (GPS + accelerometro).** L'insieme completo: SOS manuale, paracadute (confermato da
-  un controllo di immobilità post-atterraggio), impatto (accelerometro, in volo e a terra) e
-  immobilità prolungata. La velocità verticale è derivata dalla quota GPS, quindi è rumorosa
-  — non c'è barometro.
+- **App (GPS + accelerometro).** SOS manuale, impatto (accelerometro, in volo e a terra) e
+  immobilità prolungata. **Niente rete paracadute dedicata**: sul telefono un atterraggio col
+  soccorso è coperto dall'impatto (una riserva tocca duro, senza flare) e dal SOS; la rete
+  riserva vera vive lato OGN, sulla vspeed pulita del FLARM. La vspeed dell'app è derivata
+  dalla quota GPS, rumorosa — un motivo in più per non fondarci un rilevamento di discesa.
 - **OGN / FLARM (feed APRS).** Paracadute e segnale-perso. Il FLARM dà una velocità verticale
   pulita, quindi la discesa a rateo-paracadute è affidabile anche per una riserva morbida
   (~5-6 m/s, che il gate della discesa *rapida* a -8 m/s non prenderebbe). Riconosciuta la
@@ -80,12 +81,11 @@ Le due sorgenti osservano cose diverse, quindi alzano allarmi diversi e si copro
   Non c'è accelerometro, quindi niente impatto: sui volatili l'OGN copre la discesa, l'app
   copre l'urto. Resta un pavimento di copertura — una discesa che sparisce *in quota* in un
   punto d'ombra non è distinguibile da un buco di segnale, e non allarma.
-- **App + OGN (stesso pilota, device abbinato all'account).** Girano entrambe le reti e si
-  completano: la vspeed pulita dell'OGN prende una riserva morbida che il GPS rumoroso
-  dell'app potrebbe perdere, l'accelerometro dell'app prende un impatto duro che l'OGN non
+- **App + OGN (stesso pilota, device abbinato all'account).** Le due reti si completano:
+  l'OGN **porta la rete riserva** (discesa a rateo-paracadute → immobilità o segnale perso),
+  che il telefono non ha; l'app prende con l'accelerometro un impatto duro che l'OGN non
   vede. Si tiene **una sola emergenza aperta per persona** — vince la sorgente che scatta
-  prima e l'altra viene **deduplicata per identità risolta**. L'impatto non alimenta mai il
-  gate OGN: le due reti restano indipendenti.
+  prima e l'altra viene **deduplicata per identità risolta**. Le due reti restano indipendenti.
 
 Un **cap di velocità orizzontale** configurabile sul controllo di discesa rapida evita che
 un aeromobile in picchiata nell'area venga scambiato per una riserva.

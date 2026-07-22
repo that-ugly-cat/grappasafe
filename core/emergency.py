@@ -14,7 +14,7 @@ from typing import Optional
 
 from core.state_machine import (
     FLIGHT_ACTIVITIES, GROUND_ACTIVITIES,
-    FlightState, GroundState,
+    GroundState,
 )
 
 
@@ -124,10 +124,6 @@ class EmContext:
     pending_trigger:    Optional["EmergencyTrigger"] = None
     pending_since:      Optional[datetime]           = None
 
-    # Reserve-chute watch: set when DESCENDING_FAST -> LANDED. The pilot must
-    # stay immobile for chute_immobile_s to confirm; cleared if they move.
-    chute_watch_since:  Optional[datetime]           = None
-
     # Recent positions (ts, lat, lon, accuracy_m) for displacement-based
     # immobility. Appended by the GPS handler each tick, pruned to a horizon.
     recent:             list                         = field(default_factory=list)
@@ -141,10 +137,6 @@ def update_em_context(ctx: EmContext, old_state: str, new_state: str, now: datet
 
     if new_state == GroundState.IMPACT:
         ctx.impact_at = now
-
-    # Landing straight out of a fast descent starts the reserve-chute watch.
-    if old_state == FlightState.DESCENDING_FAST and new_state == FlightState.LANDED:
-        ctx.chute_watch_since = now
 
 
 def ack_ok(ctx: EmContext, now: datetime):
@@ -211,30 +203,14 @@ def _latest_good(recent, cfg: EmConfig):
     return good[-1] if good else None
 
 
-def _eval_chute(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
-    """Reserve chute: fast descent -> landing -> immobile for chute_immobile_s.
-    Immobility is measured by displacement (jitter-robust), not instant speed."""
-    if ctx.chute_watch_since is None:
-        return None
-    if not rule_active(rules, "AUTO_CHUTE", ctx.attivita):
-        ctx.chute_watch_since = None
-        return None
-    if (now - ctx.chute_watch_since).total_seconds() < cfg.chute_immobile_s:
-        return None  # not enough time watched yet
-    if _is_immobile(ctx.recent, cfg.chute_immobile_s, cfg, now):
-        ctx.chute_watch_since = None
-        return EmergencyTrigger.AUTO_CHUTE
-    # Time passed but the pilot moved away from the landing spot: stand down.
-    ctx.chute_watch_since = None
-    return None
-
-
 def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
-    """Flight: the reserve-chute gate (vertical speed) OR a hard impact followed
-    by immobility. Two independent nets — the chute catches soft descents when
-    the vspeed is clean (OGN / a barometer), the impact catches a hard landing on
-    any phone. Both dedup against an OGN emergency for the same pilot."""
-    return _eval_chute(ctx, cfg, rules, now) or _impact_immobile(ctx, cfg, rules, now)
+    """Flight, app side (GPS + accelerometer): a hard impact followed by
+    immobility. There is no app reserve-chute net — a reserve comes down at
+    ~5-6 m/s, below the SM's fast-descent gate, and the phone's GPS-derived
+    vspeed is too noisy to detect it; a hard reserve landing is caught by the
+    impact net and the rest by MANUAL. The reserve/signal-lost nets live on the
+    OGN side, on the clean FLARM vspeed (see ogn_chute_step)."""
+    return _impact_immobile(ctx, cfg, rules, now)
 
 
 def _impact_immobile(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
@@ -427,18 +403,18 @@ CONFIG_META = [
     ("ogn_flight_gap_min", "SM", "sistema", "Minuti di silenzio OGN che separano due voli (traccia/barogramma)",      "float"),
 
     # Emergency machine — flight rules
-    ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo la discesa col paracadute → emergenza (app e OGN)", "float"),
-    ("chute_arm_vspeed_ms",     "EM", "volo", "Velocità verticale soglia discesa paracadute OGN (m/s, negativo)", "float"),
-    ("chute_recover_vspeed_ms", "EM", "volo", "Velocità verticale sopra cui la discesa è rientrata in volo (m/s, negativo)", "float"),
-    ("chute_confirm_s",         "EM", "volo", "Secondi a rateo-paracadute per armare la vigilanza (e per rientrare)", "float"),
+    ("chute_immobile_s",     "EM", "volo", "Secondi immobile dopo la discesa col paracadute → emergenza (OGN)", "float"),
+    ("chute_arm_vspeed_ms",     "SM", "volo", "Velocità verticale soglia discesa paracadute OGN (m/s, negativo)", "float"),
+    ("chute_recover_vspeed_ms", "SM", "volo", "Velocità verticale sopra cui la discesa è rientrata in volo (m/s, negativo)", "float"),
+    ("chute_confirm_s",         "SM", "volo", "Secondi a rateo-paracadute per armare la vigilanza (e per rientrare)", "float"),
     ("signal_lost_wait_s",      "EM", "volo", "Secondi di silenzio OGN dopo la discesa-paracadute prima di allarmare", "float"),
-    ("signal_lost_floor_agl_m", "EM", "volo", "Quota AGL massima alla perdita del segnale per far scattare l'allarme (m)", "float"),
+    ("signal_lost_floor_agl_m", "SM", "volo", "Quota AGL massima alla perdita del segnale per far scattare l'allarme (m)", "float"),
 
     # Emergency machine — ground rules
     ("impact_recovery_s",    "EM", "terrestre", "Secondi fermo dopo impatto → AUTO_IMPACT",       "float"),
     ("immobile_emergency_s", "EM", "terrestre", "Secondi fermo senza impatto → AUTO_IMMOBILE",    "float"),
-    ("immobile_radius_m",    "EM", "terrestre", "Raggio entro cui si è considerati fermi nella finestra (m)", "float"),
-    ("gps_accuracy_max_m",   "EM", "terrestre", "Accuratezza GPS oltre cui il punto è ignorato per l'immobilità (m)", "float"),
+    ("immobile_radius_m",    "SM", "comune", "Raggio entro cui si è considerati fermi nella finestra (m)", "float"),
+    ("gps_accuracy_max_m",   "SM", "comune", "Accuratezza GPS oltre cui il punto è ignorato per l'immobilità (m)", "float"),
     ("pending_timeout_s",    "EM", "terrestre", "Secondi per confermare/annullare dal telefono (poi auto-confirm)", "float"),
 ]
 

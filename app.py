@@ -1218,7 +1218,7 @@ _ALL_OPTS = _FLIGHT_OPTS + _GROUND_OPTS
 _RULE_UI = {
     "AUTO_CHUTE": {
         "title": "Paracadute di emergenza",
-        "desc": "Discesa sostenuta a rateo-paracadute seguita da immobilità (a terra o appeso): sceso col paracadute e fermo. App e OGN.",
+        "desc": "Solo OGN: discesa sostenuta a rateo-paracadute seguita da immobilità (a terra o appeso), sceso col paracadute e fermo.",
         "activities": _FLIGHT_OPTS, "param_key": "chute_immobile_s", "param_label": "Immobile per",
     },
     "SIGNAL_LOST": {
