@@ -379,31 +379,34 @@ def get_user(user_id):
 def update_user_full(user_id, *, username, nome, cognome, role,
                      password_hash=None, telefono=None, gruppo_sanguigno=None,
                      emergenza_contatto=None, emergenza_telefono=None,
-                     flarm_id=None, lingua="it", note_salute=None):
+                     flarm_id=None, lingua="it", note_salute=None,
+                     data_nascita=None, email=None):
     """Update every field of a user. password_hash=None leaves it unchanged."""
+    email = email.strip().lower() if email else None
     con = _conn()
-    if password_hash:
-        con.execute("""
-            UPDATE users SET username=?, nome=?, cognome=?, role=?,
-              password_hash=?, telefono=?, gruppo_sanguigno=?,
-              emergenza_contatto=?, emergenza_telefono=?,
-              flarm_id=?, lingua=?, note_salute=?
-            WHERE id=?
-        """, (username, nome, cognome, role, password_hash,
-              telefono, gruppo_sanguigno, emergenza_contatto, emergenza_telefono,
-              flarm_id, lingua, note_salute, user_id))
-    else:
-        con.execute("""
-            UPDATE users SET username=?, nome=?, cognome=?, role=?,
-              telefono=?, gruppo_sanguigno=?,
-              emergenza_contatto=?, emergenza_telefono=?,
-              flarm_id=?, lingua=?, note_salute=?
-            WHERE id=?
-        """, (username, nome, cognome, role,
-              telefono, gruppo_sanguigno, emergenza_contatto, emergenza_telefono,
-              flarm_id, lingua, note_salute, user_id))
-    con.commit()
-    con.close()
+    common = (username, nome, cognome, role, telefono, gruppo_sanguigno,
+              emergenza_contatto, emergenza_telefono, flarm_id, lingua,
+              note_salute, data_nascita, email)
+    try:
+        if password_hash:
+            con.execute("""
+                UPDATE users SET username=?, nome=?, cognome=?, role=?,
+                  telefono=?, gruppo_sanguigno=?, emergenza_contatto=?,
+                  emergenza_telefono=?, flarm_id=?, lingua=?, note_salute=?,
+                  data_nascita=?, email=?, password_hash=?
+                WHERE id=?
+            """, (*common, password_hash, user_id))
+        else:
+            con.execute("""
+                UPDATE users SET username=?, nome=?, cognome=?, role=?,
+                  telefono=?, gruppo_sanguigno=?, emergenza_contatto=?,
+                  emergenza_telefono=?, flarm_id=?, lingua=?, note_salute=?,
+                  data_nascita=?, email=?
+                WHERE id=?
+            """, (*common, user_id))
+        con.commit()
+    finally:
+        con.close()
 
 
 # ── Devices (OGN <-> user linking) ────────────────────────────────────────────

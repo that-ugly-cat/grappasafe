@@ -34,7 +34,9 @@
     .badge-role-user  { background: #1a3a5a; color: #93c5fd; padding: .15rem .5rem; border-radius: 3px; font-size: .75rem; font-weight: 700; }
     .badge-role-observer { background: #1a4a3a; color: #86efac; padding: .15rem .5rem; border-radius: 3px; font-size: .75rem; font-weight: 700; }
 
-    .btn { padding: .35rem .8rem; border-radius: 5px; border: none; cursor: pointer; font-size: .82rem; font-weight: 600; }
+    .btn { padding: .35rem .8rem; border-radius: 5px; border: none; cursor: pointer; font-size: .82rem; font-weight: 600; text-decoration: none; display: inline-block; }
+    .btn-view   { background: #1a3a2a; color: #86efac; }
+    .btn-view:hover   { background: #245a3a; }
     .btn-edit   { background: #1a4a7a; color: #93c5fd; }
     .btn-delete { background: #5a1a1a; color: #fca5a5; }
     .btn-edit:hover   { background: #1e5a9a; }
@@ -126,9 +128,15 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Username *</label>
-        <input type="text" id="field-username" required autocomplete="off">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username *</label>
+          <input type="text" id="field-username" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="field-email" autocomplete="off">
+        </div>
       </div>
 
       <div class="form-group" id="password-group">
@@ -149,6 +157,10 @@
         <div class="form-group">
           <label>Telefono</label>
           <input type="text" id="field-telefono">
+        </div>
+        <div class="form-group">
+          <label>Data di nascita</label>
+          <input type="date" id="field-data-nascita">
         </div>
         <div class="form-group">
           <label>Gruppo sanguigno</label>
@@ -178,6 +190,11 @@
             <option value="it">Italiano</option>
             <option value="en">English</option>
             <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="pl">Polski</option>
+            <option value="nl">Nederlands</option>
+            <option value="es">Español</option>
+            <option value="cs">Čeština</option>
           </select>
         </div>
       </div>
@@ -195,8 +212,21 @@
   </div>
 </div>
 
+<!-- Modal conferma modifica -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal" style="max-width:400px">
+    <h3>Conferma modifica</h3>
+    <p style="color:#bbb;font-size:.92rem;line-height:1.5" id="confirm-text">Salvare le modifiche?</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-cancel" onclick="closeConfirm()">Annulla</button>
+      <button type="button" class="btn btn-primary" id="confirm-yes">Conferma e salva</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let currentUserId = null;  // null = creazione, number = modifica
+let pendingPayload = null;  // payload in attesa di conferma (solo in modifica)
 
 async function loadUsers() {
   const r = await fetch('/api/admin/users');
@@ -215,6 +245,7 @@ async function loadUsers() {
       <td style="font-family:monospace;font-size:.85rem">${u.flarm_id || '—'}</td>
       <td><span class="badge-role-${u.role}">${u.role}</span></td>
       <td style="display:flex;gap:.4rem">
+        <a class="btn btn-view" href="/admin/user/${u.id}">Visualizza</a>
         <button class="btn btn-edit" onclick='openEdit(${JSON.stringify(u)})'>Modifica</button>
         <button class="btn btn-delete" onclick="deleteUser(${u.id}, '${u.username}')">Elimina</button>
       </td>
@@ -243,9 +274,11 @@ function openEdit(u) {
   document.getElementById('field-nome').value = u.nome || '';
   document.getElementById('field-cognome').value = u.cognome || '';
   document.getElementById('field-username').value = u.username || '';
+  document.getElementById('field-email').value = u.email || '';
   document.getElementById('field-password').value = '';
   document.getElementById('field-role').value = u.role || 'user';
   document.getElementById('field-telefono').value = u.telefono || '';
+  document.getElementById('field-data-nascita').value = u.data_nascita || '';
   document.getElementById('field-gruppo-sanguigno').value = u.gruppo_sanguigno || '';
   document.getElementById('field-emergenza-contatto').value = u.emergenza_contatto || '';
   document.getElementById('field-emergenza-telefono').value = u.emergenza_telefono || '';
@@ -260,8 +293,8 @@ function closeModal() {
 }
 
 function clearForm() {
-  ['id','nome','cognome','username','password','telefono',
-   'gruppo-sanguigno','emergenza-contatto','emergenza-telefono',
+  ['id','nome','cognome','username','email','password','telefono',
+   'data-nascita','gruppo-sanguigno','emergenza-contatto','emergenza-telefono',
    'flarm-id','note-salute'].forEach(f => {
     const el = document.getElementById('field-'+f);
     if (el) el.value = '';
@@ -270,15 +303,17 @@ function clearForm() {
   document.getElementById('field-lingua').value = 'it';
 }
 
-document.getElementById('user-form').addEventListener('submit', async (e) => {
+document.getElementById('user-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const payload = {
     nome:                document.getElementById('field-nome').value.trim(),
     cognome:             document.getElementById('field-cognome').value.trim(),
     username:            document.getElementById('field-username').value.trim(),
+    email:               document.getElementById('field-email').value.trim(),
     password:            document.getElementById('field-password').value,
     role:                document.getElementById('field-role').value,
     telefono:            document.getElementById('field-telefono').value.trim(),
+    data_nascita:        document.getElementById('field-data-nascita').value,
     gruppo_sanguigno:    document.getElementById('field-gruppo-sanguigno').value.trim(),
     emergenza_contatto:  document.getElementById('field-emergenza-contatto').value.trim(),
     emergenza_telefono:  document.getElementById('field-emergenza-telefono').value.trim(),
@@ -286,29 +321,41 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
     lingua:              document.getElementById('field-lingua').value,
     note_salute:         document.getElementById('field-note-salute').value.trim(),
   };
-
-  let url, method;
+  // In modifica chiediamo conferma; in creazione salviamo subito.
   if (currentUserId) {
-    url = `/api/admin/users/${currentUserId}`;
-    method = 'PUT';
+    pendingPayload = payload;
+    document.getElementById('confirm-text').textContent =
+      `Salvare le modifiche all'utente "${payload.username}"?`;
+    document.getElementById('confirm-overlay').classList.add('open');
   } else {
-    url = '/api/admin/users';
-    method = 'POST';
+    doSave(payload);
   }
+});
 
+async function doSave(payload) {
+  const url    = currentUserId ? `/api/admin/users/${currentUserId}` : '/api/admin/users';
+  const method = currentUserId ? 'PUT' : 'POST';
   const r = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   const data = await r.json();
-  if (!r.ok) {
-    flash(data.detail || 'Errore', 'error');
-    return;
-  }
+  if (!r.ok) { flash(data.detail || 'Errore', 'error'); return; }
+  closeConfirm();
   closeModal();
   flash(currentUserId ? 'Utente aggiornato.' : 'Utente creato.', 'success');
   loadUsers();
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  pendingPayload = null;
+}
+
+document.getElementById('confirm-yes').addEventListener('click', () => {
+  if (pendingPayload) doSave(pendingPayload);
+});
+document.getElementById('confirm-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('confirm-overlay')) closeConfirm();
 });
 
 async function deleteUser(id, username) {

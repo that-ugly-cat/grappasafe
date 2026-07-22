@@ -1327,6 +1327,12 @@ async def api_create_user(request: Request):
         raise HTTPException(400, "username, password, nome e cognome sono obbligatori")
     if db.get_user_by_username(username):
         raise HTTPException(400, "Username già esistente")
+    email = _norm_email(body.get("email"))
+    if email:
+        if not _valid_email(email):
+            raise HTTPException(400, "Email non valida")
+        if db.get_user_by_email(email):
+            raise HTTPException(400, "Email già registrata")
     uid = db.create_user(
         username, hash_password(password), nome, cognome,
         role=body.get("role", "user"),
@@ -1337,6 +1343,8 @@ async def api_create_user(request: Request):
         flarm_id=body.get("flarm_id") or None,
         lingua=body.get("lingua", "it"),
         note_salute=body.get("note_salute") or None,
+        data_nascita=body.get("data_nascita") or None,
+        email=email or None,
     )
     return JSONResponse({"id": uid})
 
@@ -1350,6 +1358,13 @@ async def api_update_user(request: Request, uid: int):
     if not user:
         raise HTTPException(404, "Utente non trovato")
     password = body.get("password", "").strip()
+    email = _norm_email(body.get("email"))
+    if email:
+        if not _valid_email(email):
+            raise HTTPException(400, "Email non valida")
+        other = db.get_user_by_email(email)
+        if other and other["id"] != uid:
+            raise HTTPException(400, "Email già registrata da un altro utente")
     db.update_user_full(
         uid,
         username=body.get("username", user["username"]).strip(),
@@ -1364,6 +1379,8 @@ async def api_update_user(request: Request, uid: int):
         flarm_id=body.get("flarm_id") or None,
         lingua=body.get("lingua", "it"),
         note_salute=body.get("note_salute") or None,
+        data_nascita=body.get("data_nascita") or None,
+        email=email or None,
     )
     return JSONResponse({"ok": True})
 
