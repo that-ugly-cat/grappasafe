@@ -70,6 +70,15 @@ diving through the area from being mistaken for a reserve.
 
 Altitude thresholds are computed above ground level using local SRTM1 tiles.
 
+**When an alarm fires**, the subject's identity, position and medical data (blood type,
+health notes, date of birth / age) go out over the configured channels — a Telegram group
+and email — and the emergency gets its own detail page, also shareable as a self-expiring
+24 h public link for rescuers who aren't users. A background job records **who else was
+tracked within 300 m at the time it happened** (app or OGN), so potential witnesses aren't
+lost to track retention. Every threshold mentioned above is editable at runtime from the
+admin **Stati** (state machine) and **Regole** (which trigger is on, per activity, immediate
+or with confirmation) pages, applied within 60 s with no restart.
+
 ## Features
 
 - **Two sources merged**: mobile app and OGN/FLARM, resolved to the same identity through
@@ -86,9 +95,20 @@ Altitude thresholds are computed above ground level using local SRTM1 tiles.
   admin config page, applied within 60 s with no restart.
 - **Shareable live map**: a public `/map/{token}` URL that refreshes every 15 s.
 - **Notifications**: emergency **opened / acknowledged / resolved** pushed to a Telegram
-  group — salient details plus a link to the emergency page — and email on open. Bot token,
-  group id, the link's base URL and an on/off toggle are set from the admin panel, with the
-  environment values as a fallback.
+  group — salient details plus a link to the emergency page — and email on open (to one or
+  more recipients). Telegram and SMTP are configured entirely from the admin **Notifiche**
+  page and stored in the database; there are no notification env vars.
+- **Password recovery**: a signed, single-use, 1 h email link (`/forgot` → `/reset`) using
+  the same admin-configured SMTP; account email is required and unique.
+- **Witness search**: for each emergency, the subjects tracked within 300 m at the time it
+  happened (app or OGN, with a vertical filter for flying entities) are found and snapshotted
+  — on demand or automatically 10 minutes in — surviving track retention.
+- **Localised**: the mobile app and the user-facing web pages (`/me`, `/profile`, register)
+  are translated into 8 languages (it/en/de/fr/pl/nl/es/cs); the admin panels stay in Italian.
+- **Web registration**: a public `/register` page whose fields a partner site (e.g. a
+  fly-card portal) can pre-fill via query string — it takes whatever arrives.
+- **Calibration export**: recorded app + OGN tracks are browsable and exportable to Excel to
+  tune the detection thresholds from real data.
 
 ## API for the app
 
@@ -103,7 +123,7 @@ Under the session cookie, HTTPS: `POST /api/login`, `/api/register`, `GET`/`PUT 
 git clone https://github.com/that-ugly-cat/grappasafe.git
 cd grappasafe
 pip install -r requirements.txt
-cp .env.example .env         # set SECRET_KEY, notification channels
+cp .env.example .env         # set SECRET_KEY (notifications are configured in the admin UI)
 python seed.py               # create the initial admin user
 ./fetch_tiles.sh             # SRTM elevation tiles (~52 MB), for above-ground altitude
 python fetch_map_tiles.py    # optional: OpenTopoMap tiles for the app's offline map (~350 MB)
@@ -132,8 +152,10 @@ core/
   ogn.py            — OGN/APRS worker: area filter, flight SM, reserve-chute on landing
   terrain.py        — SRTM1 tile reader for above-ground-level altitude
   notify.py         — Telegram + email notifications
-templates/          — dashboard, emergencies (list + detail), users, config/state settings,
-                      profile, me, public map, shared admin topbar
+webi18n.py          — translations for the user-facing web pages (/me, /profile)
+templates/          — dashboard, emergencies (list + detail + public link), users, state/
+                      emergency/notification settings, profile, me, register, forgot/reset,
+                      recorded tracks, public map, shared admin topbar
 ```
 
 See [DEPLOY.md](DEPLOY.md) for production deployment.
