@@ -151,6 +151,7 @@
 
   <div class="card">
     <h3>Dati medici</h3>
+    <div class="row"><span class="k">Data di nascita</span><span class="v">{% if em.data_nascita %}{{ em.data_nascita }}{% if em.data_nascita | age is not none %} · {{ em.data_nascita | age }} anni{% endif %}{% else %}—{% endif %}</span></div>
     <div class="row"><span class="k">Gruppo sanguigno</span><span class="v">{{ em.gruppo_sanguigno or '—' }}</span></div>
     <div class="row"><span class="k">Note salute</span><span class="v">{{ em.note_salute or '—' }}</span></div>
     <div class="row"><span class="k">Lingua</span><span class="v">{{ em.lingua or 'it' }}</span></div>

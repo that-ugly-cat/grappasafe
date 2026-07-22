@@ -179,6 +179,23 @@ def _localtime(ts, fmt="%d/%m/%Y %H:%M"):
 templates.env.filters["localtime"] = _localtime
 
 
+def _age(iso):
+    """Jinja filter: ISO date (YYYY-MM-DD) -> age in whole years, or None."""
+    if not iso:
+        return None
+    try:
+        from datetime import date
+        y, m, d = (int(x) for x in str(iso)[:10].split("-"))
+        born = date(y, m, d)
+        today = date.today()
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    except Exception:
+        return None
+
+
+templates.env.filters["age"] = _age
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _home_for(user) -> str:
