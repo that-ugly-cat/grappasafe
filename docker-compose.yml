@@ -5,6 +5,7 @@ services:
     volumes:
       - ./data:/data
       - ./map_tiles:/app/map_tiles   # tile OpenTopoMap offline, servite su /map-tiles
+      - ./vector_tiles:/app/vector_tiles   # tile vettoriali (build_vector_tiles.sh), su /vector-tiles
     environment:
       - GRAPPASAFE_DB=/data/grappasafe.db
     env_file:

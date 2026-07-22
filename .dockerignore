@@ -1,6 +1,8 @@
 .env
 data/
 map_tiles/
+vector_tiles/
+vector_build/
 .venv/
 __pycache__/
 *.pyc
