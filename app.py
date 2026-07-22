@@ -206,6 +206,15 @@ def _norm_email(e) -> str:
     return (e or "").strip().lower()
 
 
+def _emergency_user_message(user) -> str:
+    """Optional custom in-emergency message for the user's language; empty means
+    the app shows its own translated text for that language."""
+    lang = user.get("lingua") or "it"
+    if lang not in webi18n.LANGS:
+        lang = "it"
+    return db.get_config_value(f"emergency_user_message_{lang}", "")
+
+
 # Password reset: a signed, self-expiring token (1h) that is also single-use —
 # it embeds a short hash of the current password hash, so once the password
 # changes the old token stops verifying. No token table to store or clean up.
@@ -1011,8 +1020,7 @@ async def emergency_manual(request: Request):
         )
         notify_emergency(eid)
 
-    msg = db.get_config_value("emergency_user_message", "")
-    return JSONResponse({"ok": True, "message": msg})
+    return JSONResponse({"ok": True, "message": _emergency_user_message(user)})
 
 
 @app.get("/api/emergency/status")
@@ -1026,7 +1034,7 @@ async def api_emergency_status(request: Request):
     if not user:
         return JSONResponse({"error": "not authenticated"}, status_code=401)
     em = db.get_open_emergency_for_user(user["id"])
-    msg = db.get_config_value("emergency_user_message", "")
+    msg = _emergency_user_message(user)
     if not em:
         return JSONResponse({"active": False, "message": msg})
     return JSONResponse({
@@ -1263,6 +1271,7 @@ async def admin_notifications_settings(request: Request):
     cfg = {r["key"]: r for r in db.get_all_config()}
     return templates.TemplateResponse(request, "notifications_settings.html", {
         "user": user, "cfg": cfg,
+        "web_langs": webi18n.LANGS, "web_lang_names": webi18n.LANG_NAMES,
     })
 
 

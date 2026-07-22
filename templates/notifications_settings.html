@@ -56,23 +56,20 @@
 {% set active = "notifications" %}{% include "_admin_topbar.html" %}
 
 <div class="content">
-  <h2>Notifiche Telegram</h2>
-  <p class="subtitle">Le emergenze vengono inviate a un gruppo Telegram. Ogni messaggio riporta gli elementi salienti e il link alla scheda. Modifiche attive entro 60 secondi, senza riavvio.</p>
+  <h2>Notifiche</h2>
+  <p class="subtitle">Canali di allerta e messaggi. Modifiche attive entro 60 secondi, senza riavvio.</p>
 
   <div id="flash-area"></div>
 
+  <!-- ── Notifiche Telegram ────────────────────────────────────────────── -->
   <div class="card">
-    <h3>Eventi inviati al gruppo</h3>
+    <h3>Notifiche Telegram<button class="info-btn" type="button" onclick="openInfo()" title="Come si configura">?</button></h3>
     <div class="events">
       🆘 <b>Emergenza aperta</b> — identità, contatti, dati medici, posizione, link<br>
       ✅ <b>Presa in carico</b> — chi la sta gestendo, posizione, link<br>
       🟢 <b>Risolta</b> — chi l'ha risolta, nota di chiusura, link
     </div>
-  </div>
-
-  <div class="card">
-    <h3>Configurazione<button class="info-btn" type="button" onclick="openInfo()" title="Come si configura">?</button></h3>
-    <div class="field">
+    <div class="field" style="margin-top:1.1rem">
       <div class="toggle">
         <input type="checkbox" id="telegram_enabled" data-key="telegram_enabled" data-tipo="bool"
                {{ 'checked' if (cfg.telegram_enabled.value if cfg.telegram_enabled else 'true') == 'true' else '' }}>
@@ -92,26 +89,21 @@
       <div class="hint">Aggiungi il bot al gruppo, scrivi un messaggio, poi apri
         <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> e copia <code>chat.id</code> (per i gruppi inizia con <code>-100</code>).</div>
     </div>
-    <div class="field">
-      <label>URL pubblico del pannello</label>
-      <input type="text" data-key="public_base_url" data-tipo="text" placeholder="https://grappasafe.example.org"
-             value="{{ cfg.public_base_url.value if cfg.public_base_url else '' }}">
-      <div class="hint">Usato per comporre il link alla scheda emergenza dentro le notifiche. Senza barra finale.</div>
-    </div>
     <div class="actions">
       <button class="btn-save" id="btn-save" onclick="saveAll()">Salva</button>
       <button class="btn-test" id="btn-test" onclick="saveAndTest()">Salva e invia prova</button>
     </div>
   </div>
 
+  <!-- ── Notifiche email ───────────────────────────────────────────────── -->
   <div class="card">
-    <h3>Email (SMTP)</h3>
-    <p class="subtitle" style="margin-bottom:1rem">Serve per il <b>recupero password</b> degli utenti (e per le email di notifica). Attiva entro 60 secondi, senza riavvio.</p>
+    <h3>Notifiche email</h3>
+    <p class="subtitle" style="margin-bottom:1rem">Usata per il <b>recupero password</b> degli utenti e, opzionalmente, per l'allerta email all'apertura di un'emergenza.</p>
     <div class="field">
       <div class="toggle">
         <input type="checkbox" id="email_enabled" data-key="email_enabled" data-tipo="bool"
                {{ 'checked' if (cfg.email_enabled.value if cfg.email_enabled else 'true') == 'true' else '' }}>
-        <label for="email_enabled" style="margin:0">Invia email (recupero password, notifiche)</label>
+        <label for="email_enabled" style="margin:0">Invia email</label>
       </div>
     </div>
     <div class="field">
@@ -160,14 +152,33 @@
     <div class="hint" style="margin-top:.5rem">L'email di prova viene inviata all'indirizzo del tuo profilo.</div>
   </div>
 
+  <!-- ── Altre configurazioni ──────────────────────────────────────────── -->
+  <div class="card">
+    <h3>Altre configurazioni</h3>
+    <div class="field">
+      <label>URL pubblico del pannello</label>
+      <input type="text" data-key="public_base_url" data-tipo="text" placeholder="https://grappasafe.example.org"
+             value="{{ cfg.public_base_url.value if cfg.public_base_url else '' }}">
+      <div class="hint">Base dei link nei messaggi: la scheda emergenza nelle notifiche Telegram e il link di recupero password nelle email. Senza barra finale.</div>
+    </div>
+    <div class="actions">
+      <button class="btn-save" onclick="saveAll()">Salva</button>
+    </div>
+  </div>
+
+  <!-- ── Messaggio in emergenza (app), per lingua ──────────────────────── -->
   <div class="card">
     <h3>Messaggio in emergenza (app)</h3>
-    <p class="subtitle" style="margin-bottom:1rem">Testo mostrato sul telefono dell'utente mentre un'emergenza è aperta. <b>Lascia vuoto</b> per usare il messaggio predefinito, tradotto nella lingua dell'app. Compilalo solo per forzare un testo fisso (in una lingua sola).</p>
+    <p class="subtitle" style="margin-bottom:1rem">Testo mostrato sul telefono dell'utente mentre un'emergenza è aperta, <b>per ogni lingua</b>. Il telefono riceve la versione della propria lingua. <b>Lascia vuoto</b> un campo per usare il messaggio predefinito dell'app in quella lingua.</p>
+    {% for l in web_langs %}
+    {% set row = cfg.get('emergency_user_message_' ~ l) %}
     <div class="field">
-      <input type="text" data-key="emergency_user_message" data-tipo="text"
-             placeholder="(vuoto = messaggio predefinito tradotto)"
-             value="{{ cfg.emergency_user_message.value if cfg.emergency_user_message else '' }}">
+      <label>{{ web_lang_names[l] }}</label>
+      <input type="text" data-key="emergency_user_message_{{ l }}" data-tipo="text"
+             placeholder="(vuoto = predefinito)"
+             value="{{ row.value if row else '' }}">
     </div>
+    {% endfor %}
     <div class="actions">
       <button class="btn-save" onclick="saveAll()">Salva</button>
     </div>
@@ -184,7 +195,7 @@
       <li>Crea (o scegli) il <b>gruppo</b> dove vuoi ricevere le notifiche e <b>aggiungi il bot</b> come membro, con il permesso di scrivere.</li>
       <li>Scrivi un messaggio qualsiasi nel gruppo (serve a far comparire il gruppo negli aggiornamenti del bot).</li>
       <li>Apri nel browser <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> e cerca <code>"chat":{"id":-100...}</code>. Copia quell'<b>id</b> nel campo <b>ID del gruppo</b> (per i gruppi inizia con <code>-100</code>).</li>
-      <li>Imposta l'<b>URL pubblico del pannello</b> (es. <code>https://grappasafe.example.org</code>): serve a rendere cliccabile il link alla scheda dentro le notifiche.</li>
+      <li>In <b>Altre configurazioni</b> imposta l'<b>URL pubblico del pannello</b> (es. <code>https://grappasafe.example.org</code>): serve a rendere cliccabile il link alla scheda dentro le notifiche.</li>
       <li>Premi <b>Salva e invia prova</b>: dovresti ricevere subito un messaggio di test nel gruppo.</li>
     </ol>
     <div class="note">Eventi inviati al gruppo: emergenza <b>aperta</b>, <b>presa in carico</b>, <b>risolta</b> — sempre con gli elementi salienti e il link alla scheda. Il toggle in alto disattiva l'invio senza cancellare token e id.</div>

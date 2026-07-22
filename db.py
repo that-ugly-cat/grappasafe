@@ -198,16 +198,16 @@ def _seed_config(con):
             INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (key, value, tipo, macchina, categoria, descrizione))
-    # Optional custom message shown on the user's phone while an emergency is
-    # open. Empty by default: the app then shows its own message, translated in
-    # the app's language. Set here to override with a fixed (single-language) text.
-    con.execute("""
-        INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        "emergency_user_message", "", "text", "NOTIFY", "notifiche",
-        "Messaggio mostrato sul telefono durante un'emergenza (vuoto = predefinito tradotto)",
-    ))
+    # Optional custom in-emergency message shown on the user's phone, one per
+    # language. Empty by default: the app then shows its own translated text for
+    # that language. The server sends the row matching the user's language.
+    from webi18n import LANGS as _MSG_LANGS
+    for lang in _MSG_LANGS:
+        con.execute("""
+            INSERT OR IGNORE INTO config (key, value, tipo, macchina, categoria, descrizione)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (f"emergency_user_message_{lang}", "", "text", "NOTIFY", "notifiche",
+              f"Messaggio in emergenza (app) — {lang} (vuoto = predefinito)"))
     # Telegram emergency notifications, editable from the admin panel. Left
     # empty by default: nothing is sent until an admin fills token + chat id.
     for key, value, tipo, descr in (
