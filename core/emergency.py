@@ -14,7 +14,7 @@ from typing import Optional
 
 from core.state_machine import (
     FLIGHT_ACTIVITIES, GROUND_ACTIVITIES,
-    GroundState,
+    FlightState, GroundState,
 )
 
 
@@ -34,6 +34,8 @@ class EmConfig:
     takeoff_speed_kmh:    float = 15.0   # minimum takeoff speed
     takeoff_alt_m:        float = 30.0   # alternative takeoff altitude
     takeoff_confirm_s:    float = 45.0   # seconds in condition to confirm
+    airborne_alt_m:       float = 100.0  # AGL above which airborne is certain, set
+    #   immediately with no confirmation streak (survives a gappy OGN feed)
     landing_speed_kmh:    float = 10.0   # maximum landing speed
     landing_alt_m:        float = 50.0   # maximum landing altitude (forgiving of
     #   SRTM error and ridge top-landings; feeds the descriptive LANDED state)
@@ -73,7 +75,7 @@ class EmConfig:
     ogn_flight_gap_min:   float = 30.0   # OGN silence that separates two flights (track/barogram)
 
     # Ground emergency rules
-    impact_recovery_s:    float = 120.0  # motionless after impact -> AUTO_IMPACT
+    impact_recovery_s:    float = 90.0   # motionless after impact -> AUTO_IMPACT
     immobile_emergency_s: float = 600.0  # motionless without impact -> AUTO_IMMOBILE
 
     # Reserve-chute immobility window (displacement-based): confirms the OGN
@@ -88,7 +90,9 @@ class EmConfig:
     # intentional spiral has the same rate but flies back out).
     chute_arm_vspeed_ms:     float = -5.0   # vspeed at/below this suspects a reserve
     chute_recover_vspeed_ms: float = -2.0   # vspeed above this = back to normal flight
-    chute_confirm_s:         float = 8.0    # seconds at reserve rate to arm (or to recover)
+    chute_confirm_s:         float = 12.0   # seconds at reserve rate to arm (or recover) —
+    #   long enough to reject a brief steep approach (big ears + bar); a reserve
+    #   sinks at this rate for far longer
 
     # OGN Path 2 — signal lost. After a reserve descent the beacon usually stops
     # near the ground; if it stays silent this long and the last altitude was low,
@@ -145,8 +149,7 @@ def ack_ok(ctx: EmContext, now: datetime):
     ctx.pending_since   = None
 
 
-def evaluate_em(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime,
-                speed_kmh=None) -> Optional[EmergencyTrigger]:
+def evaluate_em(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
     """Evaluate the enabled rules on a GPS tick and return a trigger, or None.
 
     Rules come from the DB (enabled / applies_to / mode), so an admin can turn
@@ -291,7 +294,8 @@ def ogn_chute_step(tracker, alt_agl, lat, lon, speed_kmh, vspeed_ms,
     Path 1 (immobility) fires on this beacon, otherwise None.
 
     Arms on a descent at/below chute_arm_vspeed_ms (horizontal speed under the
-    aircraft cap) sustained for chute_confirm_s. A recovery to normal flight —
+    aircraft cap) *while AIRBORNE*, sustained for chute_confirm_s. A recovery to
+    normal flight —
     vspeed above chute_recover_vspeed_ms *and* still moving at flight speed
     (>= takeoff_speed_kmh), sustained — disarms it: that is what tells a reserve
     apart from a B-stall or an intentional spiral that flies back out. The speed
@@ -317,11 +321,15 @@ def ogn_chute_step(tracker, alt_agl, lat, lon, speed_kmh, vspeed_ms,
                   and speed_kmh <= cfg.descending_max_speed_kmh)
 
     if not tracker.chute_watch:
-        if descending:
+        # Only a device that actually took off can be under a reserve: a
+        # descending device that never reached AIRBORNE (on the ground, in a
+        # vehicle) must not arm.
+        if descending and tracker.state == FlightState.AIRBORNE:
             if tracker.chute_arm_since is None:
                 tracker.chute_arm_since = now
             elif (now - tracker.chute_arm_since).total_seconds() >= cfg.chute_confirm_s:
                 tracker.chute_watch = True
+                tracker.chute_fired = False   # fresh episode: allow it to fire
                 tracker.chute_arm_since = None
         else:
             tracker.chute_arm_since = None
@@ -335,6 +343,7 @@ def ogn_chute_step(tracker, alt_agl, lat, lon, speed_kmh, vspeed_ms,
             tracker.chute_recover_since = now
         elif (now - tracker.chute_recover_since).total_seconds() >= cfg.chute_confirm_s:
             tracker.chute_watch = False
+            tracker.chute_fired = False   # episode over: re-armable for a new event
             tracker.chute_recover_since = None
             tracker.chute_recent = []
             return None
@@ -374,6 +383,7 @@ CONFIG_META = [
     ("takeoff_speed_kmh",    "SM", "volo", "Velocità minima decollo (km/h)",                     "float"),
     ("takeoff_alt_m",        "SM", "volo", "Quota AGL alternativa per confermare decollo (m)",   "float"),
     ("takeoff_confirm_s",    "SM", "volo", "Secondi in condizione decollo per confermare",       "float"),
+    ("airborne_alt_m",       "SM", "volo", "Quota AGL oltre cui si è certamente in volo (AIRBORNE subito, bypassa la conferma)", "float"),
     ("landing_speed_kmh",    "SM", "volo", "Velocità massima atterraggio (km/h)",                "float"),
     ("landing_alt_m",        "SM", "volo", "Quota AGL massima atterraggio (m)",                  "float"),
     ("landing_confirm_s",    "SM", "volo", "Secondi in condizione atterraggio per confermare",   "float"),

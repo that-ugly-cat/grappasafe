@@ -161,6 +161,14 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
     """Flight logic shared by SessionTracker and OgnTracker."""
 
     if state == FlightState.GROUND:
+        # Well above the ground is unambiguous: go airborne immediately, without
+        # the confirmation streak. A gappy OGN feed keeps resetting that streak
+        # (a normal beacon gap looks like silence), which can otherwise leave a
+        # pilot at altitude stuck at GROUND.
+        if alt_m >= cfg.airborne_alt_m:
+            set_state(FlightState.AIRBORNE)
+            set_since("takeoff_since", None)
+            return
         if speed_kmh >= cfg.takeoff_speed_kmh or alt_m > cfg.takeoff_alt_m:
             since = get_since("takeoff_since")
             if since is None:

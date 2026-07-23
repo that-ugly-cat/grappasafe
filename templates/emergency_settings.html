@@ -142,14 +142,6 @@
 
 <script>
 const INFO = {
-  ack_cooldown_s: {
-    title: "Pausa dopo «sto bene»",
-    body: `Quando l'utente preme "sto bene" (o annulla un pending), le regole terrestri vengono <strong>sospese per questo tempo</strong>.
-<br><br>
-Evita di ri-allarmare durante una sosta intenzionale: ti fermi a mangiare, il sistema chiede, dici "sto bene", e non deve richiederlo di nuovo tra due minuti mentre sei ancora fermo. Dopo la finestra, torna a sorvegliare.
-<br><br>
-Default: 1800s = 30 minuti.`,
-  },
   pending_timeout_s: {
     title: "Finestra di risposta dal telefono",
     body: `Vale per le regole in modalità <strong>pending</strong>. Quando scattano, il server <em>non</em> allerta subito i soccorsi: manda un allarme al telefono e dà questo tempo per rispondere.

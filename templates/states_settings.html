@@ -97,6 +97,7 @@ const INFO = {
   takeoff_speed_kmh: { title: "Velocità minima decollo", body: "Velocità orizzontale oltre cui parte il conteggio del decollo. In OR con la quota AGL: basta una delle due." },
   takeoff_alt_m: { title: "Quota AGL alternativa decollo", body: "Quota sopra il suolo oltre cui si riconosce un possibile decollo anche senza velocità. Calcolata dalle tile SRTM1 (il Grappa è a ~1400m AMSL, per questo si usa l'AGL)." },
   takeoff_confirm_s: { title: "Conferma decollo", body: "La condizione di decollo deve durare almeno questo tempo prima di passare ad <strong>AIRBORNE</strong>. Filtra spike GPS momentanei." },
+  airborne_alt_m: { title: "Quota «certamente in volo»", body: "Sopra questa quota AGL l'entità passa ad <strong>AIRBORNE</strong> <em>subito</em>, senza la conferma temporizzata. Serve perché la ricezione OGN a buchi può azzerare di continuo la conferma di decollo e lasciare un pilota in quota bloccato a GROUND." },
   landing_speed_kmh: { title: "Velocità massima atterraggio", body: "Sotto questa velocità <strong>e</strong> sotto la quota di atterraggio (AND) si considera un possibile atterraggio." },
   landing_alt_m: { title: "Quota AGL massima atterraggio", body: "Da raggiungere insieme alla soglia di velocità. Evita falsi atterraggi per volo lento in quota." },
   landing_confirm_s: { title: "Conferma atterraggio", body: "Secondi consecutivi sotto entrambe le soglie prima di passare a <strong>LANDED</strong>." },
