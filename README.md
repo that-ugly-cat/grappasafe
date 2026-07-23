@@ -62,6 +62,10 @@ Trasversale a tutti:
 - Un operatore può **prendere in carico** un'emergenza (acknowledge) prima di risolverla;
   l'app lo segnala alla persona in difficoltà. La risoluzione chiude la sessione attiva del
   soggetto.
+- Ogni passo del ciclo è **registrato a database** (`session_events`): pre-emergenza inviata al
+  telefono, annullata («sto bene»), confermata o scaduta, poi apertura / presa in carico /
+  risoluzione. Vive in DB, non solo in memoria, quindi sopravvive a un riavvio; e i pending
+  **annullati** (senza emergenza) restano come **audit dei falsi positivi** per la taratura.
 
 ### App, OGN e entrambe
 
@@ -97,10 +101,12 @@ sanguigno, note salute, data di nascita / età) partono sui canali configurati �
 Telegram ed email — e l'emergenza ha la sua scheda dedicata, condivisibile anche come link
 pubblico a scadenza (24 h) per soccorritori non registrati. Un job in background registra
 **chi altro era tracciato entro 300 m nel momento in cui è accaduto** (app o OGN), così i
-potenziali testimoni non si perdono con la retention delle tracce. Ogni soglia citata sopra
-è modificabile a runtime dalle pagine admin **Stati** (macchina degli stati) e **Regole**
-(quale trigger è attivo, per attività, immediato o con conferma), attive entro 60 s senza
-riavvio.
+potenziali testimoni non si perdono con la retention delle tracce. Le **tracce dell'incidente**
+stesse non scadono: tutta la sessione app del soggetto e, per l'OGN, i beacon di quel device
+entro ±60 min dall'emergenza (anche per un segnale-perso, che non ha un beacon-trigger). Ogni
+soglia citata sopra è modificabile a runtime dalle pagine admin **Stati** (macchina degli
+stati) e **Regole** (quale trigger è attivo, per attività, immediato o con conferma), attive
+entro 60 s senza riavvio.
 
 ## Ruoli e permessi
 
@@ -142,6 +148,9 @@ Al login, admin e observer vanno alla dashboard, l'utente alla propria pagina.
 - **Ricerca testimoni**: per ogni emergenza, i soggetti tracciati entro 300 m nel momento in
   cui è accaduta (app o OGN, con filtro verticale per i volatili) vengono trovati e salvati —
   a richiesta o automaticamente a +10 minuti — sopravvivendo alla retention delle tracce.
+- **Log del ciclo emergenza**: pre-emergenza (inviata / annullata / confermata / scaduta) e
+  apertura / presa in carico / risoluzione, mostrati come **timeline** sulla scheda emergenza
+  e come elenco **Eventi pre-emergenza** nella pagina tracce (l'audit dei falsi positivi).
 - **Localizzazione**: l'app mobile e le pagine web rivolte all'utente (`/me`, `/profile`,
   registrazione) sono tradotte in 8 lingue (it/en/de/fr/pl/nl/es/cs); i pannelli admin
   restano in italiano.
