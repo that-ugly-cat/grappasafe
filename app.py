@@ -1741,7 +1741,11 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
     already_resolved = bool(em and em.get("resolved_at"))
     db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
     if not already_resolved:
-        db.log_event("EMERGENCY_RESOLVED", emergency_id=eid, note=note.strip() or None)
+        db.log_event("EMERGENCY_RESOLVED", emergency_id=eid,
+                     user_id=(em.get("subject_user_id") if em else None),
+                     ogn_id=(em.get("ogn_id") if em else None),
+                     trigger=(em.get("trigger") if em else None),
+                     note=note.strip() or None)
         notify_emergency_resolved(eid)
     # Resolving an emergency closes the subject's activity: the session stays
     # alive (with GPS) during the emergency for the rescue, and is ended here.
@@ -1825,7 +1829,10 @@ async def ack_emergency(request: Request, eid: int):
     fresh = bool(em and not em.get("acknowledged_at") and not em.get("resolved_at"))
     db.acknowledge_emergency(eid, acknowledged_by=user["id"])
     if fresh:
-        db.log_event("EMERGENCY_ACK", emergency_id=eid)
+        db.log_event("EMERGENCY_ACK", emergency_id=eid,
+                     user_id=(em.get("subject_user_id") if em else None),
+                     ogn_id=(em.get("ogn_id") if em else None),
+                     trigger=(em.get("trigger") if em else None))
         notify_emergency_ack(eid)
     return RedirectResponse(f"/admin/emergency/{eid}", status_code=303)
 
