@@ -130,6 +130,9 @@
       <div class="row"><span class="k">Coordinate</span><span class="v">{{ "%.5f"|format(em.lat) }}, {{ "%.5f"|format(em.lon) }}
         · <a class="maps" href="https://maps.google.com/?q={{ em.lat }},{{ em.lon }}" target="_blank" rel="noopener">Google Maps</a>
         {% if em.alt_m %} · ⬆ {{ em.alt_m|round|int }}m{% endif %}</span></div>
+      {% if em.session_id or em.ogn_id %}
+      <div class="row"><span class="k">Traccia</span><span class="v"><label style="cursor:pointer"><input type="checkbox" id="track-toggle" checked> mostra la traccia sulla mappa</label> <span class="muted" id="track-info"></span></span></div>
+      {% endif %}
       <div id="em-map"></div>
     {% else %}
       <div class="muted">Posizione non disponibile.</div>
@@ -220,6 +223,28 @@
 const map = L.map('em-map', { zoomControl: true }).setView([{{ em.lat }}, {{ em.lon }}], 14);
 L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 }).addTo(map);
 L.marker([{{ em.lat }}, {{ em.lon }}]).addTo(map);
+
+// Track around the incident (app session or OGN device), shown by default; the
+// checkbox hides it. Retention keeps the incident track (whole app session /
+// OGN device ±60 min), so it survives the daily purge.
+const trackUrl = {% if em.session_id %}'/api/admin/track/{{ em.session_id }}'{% elif em.ogn_id %}'/api/admin/ogn-track/{{ em.ogn_id | urlencode }}'{% else %}null{% endif %};
+let trackLine = null;
+async function loadTrack() {
+  if (!trackUrl) return;
+  const cb = document.getElementById('track-toggle');
+  const info = document.getElementById('track-info');
+  let pts;
+  try { pts = await fetch(trackUrl).then(r => r.json()); } catch { return; }
+  const ll = (pts || []).filter(p => p.lat != null && p.lon != null).map(p => [p.lat, p.lon]);
+  if (ll.length < 2) { if (info) info.textContent = '(traccia non disponibile)'; if (cb) cb.disabled = true; return; }
+  trackLine = L.polyline(ll, { color: '#6ab0ff', weight: 3, opacity: .85 }).addTo(map);
+  map.fitBounds(trackLine.getBounds().extend([{{ em.lat }}, {{ em.lon }}]), { padding: [30, 30] });
+  if (info) info.textContent = `(${ll.length} punti)`;
+  if (cb) cb.addEventListener('change', () => {
+    if (cb.checked) trackLine.addTo(map); else map.removeLayer(trackLine);
+  });
+}
+loadTrack();
 {% endif %}
 
 async function makeShare() {
