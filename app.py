@@ -371,8 +371,11 @@ async def register_get(request: Request):
     user = get_current_user(request)
     if user:
         return RedirectResponse(_home_for(user), status_code=303)
+    # from=app: la registrazione è stata aperta dall'app → a fine flusso rimandiamo
+    # al deep-link invece che a /me. Il flag viaggia GET → hidden field → POST.
+    from_app = request.query_params.get("from") == "app"
     return templates.TemplateResponse(request, "register.html",
-                                      {"form": _register_prefill(request)})
+                                      {"form": _register_prefill(request), "from_app": from_app})
 
 
 @app.post("/register")
@@ -385,6 +388,7 @@ async def register_post(
     gruppo_sanguigno: str = Form(""), note_salute: str = Form(""),
     lingua: str = Form("it"),
     ogn_id: str = Form(""), device_name: str = Form(""),
+    from_: str = Form("", alias="from"),
 ):
     username = username.strip(); nome = nome.strip(); cognome = cognome.strip()
     email = _norm_email(email)
@@ -416,7 +420,8 @@ async def register_post(
 
     if error:
         return templates.TemplateResponse(
-            request, "register.html", {"form": form, "error": error}, status_code=400)
+            request, "register.html",
+            {"form": form, "error": error, "from_app": from_ == "app"}, status_code=400)
 
     uid = db.create_user(
         username, hash_password(password), nome, cognome,
@@ -435,6 +440,9 @@ async def register_post(
         db.add_device(uid, form["device_name"] or "FLARM/OGN", ogn_id=form["ogn_id"])
 
     request.session["user"] = {"id": uid}
+    if from_ == "app":
+        # Arrivati dall'app: pagina di successo col deep-link di ritorno.
+        return templates.TemplateResponse(request, "register_done.html", {})
     return RedirectResponse("/me", status_code=303)
 
 
@@ -935,7 +943,7 @@ async def gps_point(request: Request):
     # 2. Evaluate the EM. Each rule's mode (immediate / pending) comes from its
     #    config: immediate opens the emergency now, pending gives the user
     #    pending_timeout_s to confirm or cancel from the phone.
-    trigger = evaluate_em(ctx, cfg, rules, now, speed_kmh=speed_kmh)
+    trigger = evaluate_em(ctx, cfg, rules, now)
     if trigger:
         rule = rules.get(trigger.value)
         mode = rule["mode"] if rule else "immediate"
@@ -1266,7 +1274,7 @@ async def admin_emergency_settings(request: Request):
             "param_key": ui["param_key"], "param_label": ui["param_label"],
             "param_value": param["value"] if param else "",
         })
-    globals_ = [cfg[k] for k in ("ack_cooldown_s", "pending_timeout_s") if k in cfg]
+    globals_ = [cfg[k] for k in ("pending_timeout_s",) if k in cfg]
     return templates.TemplateResponse(request, "emergency_settings.html", {
         "user": user, "rule_cards": rule_cards, "globals": globals_,
     })
