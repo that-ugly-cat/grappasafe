@@ -180,6 +180,26 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_devices_ogn   ON devices (ogn_id);
         CREATE INDEX IF NOT EXISTS idx_devices_owner ON devices (owner_user_id);
+
+        -- Lifecycle events for a session/pilot: the pre-emergency (pending)
+        -- events and the emergency lifecycle. emergency_id is set once (and if)
+        -- an emergency opens, so the episode shows in the emergency timeline; it
+        -- stays NULL for a pending the pilot dismissed (the false-positive audit).
+        CREATE TABLE IF NOT EXISTS session_events (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts           TEXT DEFAULT (datetime('now')),
+            session_id   INTEGER,
+            user_id      INTEGER,
+            ogn_id       TEXT,
+            event        TEXT NOT NULL,   -- PENDING_SENT|PENDING_ACK|PENDING_CONFIRM|PENDING_TIMEOUT|EMERGENCY_OPENED|EMERGENCY_ACK|EMERGENCY_RESOLVED
+            trigger      TEXT,
+            emergency_id INTEGER,
+            lat REAL, lon REAL, alt_m REAL,
+            note         TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_events_emergency ON session_events (emergency_id);
+        CREATE INDEX IF NOT EXISTS idx_events_session   ON session_events (session_id);
     """)
     con.commit()
 
@@ -778,7 +798,9 @@ def get_open_emergencies():
                COALESCE(du.data_nascita,       u.data_nascita,       ou.data_nascita)       AS data_nascita,
                COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
                COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
-               ob.ogn_id       AS ogn_id,
+               COALESCE(ob.ogn_id,
+                        (SELECT ogn_id FROM session_events
+                         WHERE emergency_id = e.id AND ogn_id IS NOT NULL LIMIT 1)) AS ogn_id,
                ob.display_name AS ogn_name
         FROM emergencies e
         LEFT JOIN users       du ON e.user_id       = du.id
@@ -826,7 +848,9 @@ def get_emergency(eid):
                COALESCE(du.lingua,             u.lingua,             ou.lingua)             AS lingua,
                COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
                COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
-               ob.ogn_id       AS ogn_id,
+               COALESCE(ob.ogn_id,
+                        (SELECT ogn_id FROM session_events
+                         WHERE emergency_id = e.id AND ogn_id IS NOT NULL LIMIT 1)) AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome,
                ab.nome         AS acker_nome,
@@ -860,7 +884,9 @@ def get_all_emergencies():
                COALESCE(du.gruppo_sanguigno,   u.gruppo_sanguigno,   ou.gruppo_sanguigno)   AS gruppo_sanguigno,
                COALESCE(e.user_id,            s.user_id,            d.owner_user_id)       AS subject_user_id,
                COALESCE(s.attivita, CASE WHEN e.ogn_beacon_id IS NOT NULL THEN 'PARAGLIDER' END)                    AS attivita,
-               ob.ogn_id       AS ogn_id,
+               COALESCE(ob.ogn_id,
+                        (SELECT ogn_id FROM session_events
+                         WHERE emergency_id = e.id AND ogn_id IS NOT NULL LIMIT 1)) AS ogn_id,
                rb.nome         AS resolver_nome,
                rb.cognome      AS resolver_cognome
         FROM emergencies e
@@ -1082,6 +1108,12 @@ def get_witnesses_map():
 
 # ── Retention ─────────────────────────────────────────────────────────────────
 
+# How much of a device's OGN track to keep around each OGN emergency (minutes
+# before and after), so the approach/descent survives track retention — the OGN
+# analogue of keeping a whole app session.
+OGN_INCIDENT_KEEP_MIN = 60
+
+
 def purge_old_tracks(retention_days):
     """Delete GPS points and OGN beacons older than retention_days, keeping
     anything linked to an emergency (open or resolved). Returns row counts."""
@@ -1092,14 +1124,32 @@ def purge_old_tracks(retention_days):
         WHERE datetime(ts) < datetime('now', ?)
           AND session_id NOT IN (SELECT session_id FROM emergencies WHERE session_id IS NOT NULL)
     """, (cutoff,)).rowcount
+    # Keep OGN beacons around an incident: the single trigger beacon the emergency
+    # references, PLUS the whole ±window of that device's track around any OGN
+    # emergency. The anchor is the EMERGENCY_OPENED event (kept forever), which
+    # carries the device's ogn_id — so this covers SIGNAL_LOST too, whose
+    # emergency has no trigger beacon.
+    keep = f'{OGN_INCIDENT_KEEP_MIN} minutes'
     c2 = con.execute("""
         DELETE FROM ogn_beacons
         WHERE datetime(ts) < datetime('now', ?)
           AND id NOT IN (SELECT ogn_beacon_id FROM emergencies WHERE ogn_beacon_id IS NOT NULL)
+          AND NOT EXISTS (
+              SELECT 1 FROM session_events se
+              WHERE se.event = 'EMERGENCY_OPENED' AND se.ogn_id IS NOT NULL
+                AND se.ogn_id = ogn_beacons.ogn_id
+                AND datetime(ogn_beacons.ts) BETWEEN datetime(se.ts, ?) AND datetime(se.ts, ?)
+          )
+    """, (cutoff, '-' + keep, '+' + keep)).rowcount
+    # Dismissed pending events (never linked to an emergency) age out like tracks;
+    # emergency-linked events stay as part of the emergency record.
+    c3 = con.execute("""
+        DELETE FROM session_events
+        WHERE datetime(ts) < datetime('now', ?) AND emergency_id IS NULL
     """, (cutoff,)).rowcount
     con.commit()
     con.close()
-    return {"gps_points": c1, "ogn_beacons": c2}
+    return {"gps_points": c1, "ogn_beacons": c2, "session_events": c3}
 
 
 # ── Notification log ──────────────────────────────────────────────────────────
@@ -1112,6 +1162,69 @@ def log_notification(emergency_id, channel, recipient, success):
     )
     con.commit()
     con.close()
+
+
+# ── Session / emergency lifecycle events ──────────────────────────────────────
+
+def log_event(event, session_id=None, user_id=None, ogn_id=None, trigger=None,
+              emergency_id=None, lat=None, lon=None, alt_m=None, note=None):
+    """Append a lifecycle event (pre-emergency + emergency lifecycle). Best-effort:
+    a logging failure must never break the emergency path, so it is swallowed."""
+    try:
+        con = _conn()
+        con.execute("""
+            INSERT INTO session_events
+              (session_id, user_id, ogn_id, event, trigger, emergency_id, lat, lon, alt_m, note)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+        """, (session_id, user_id, ogn_id, event, trigger, emergency_id, lat, lon, alt_m, note))
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"  [event-log] {event} failed: {e}")
+
+
+def link_events_to_emergency(session_id, since_ts, emergency_id):
+    """Attach a session's still-unlinked events since since_ts (a datetime) to an
+    emergency, so the pending episode shows in its timeline. Scoped by since_ts so
+    an earlier, dismissed episode is not swept in."""
+    if session_id is None or since_ts is None or emergency_id is None:
+        return
+    try:
+        con = _conn()
+        con.execute("""
+            UPDATE session_events SET emergency_id=?
+            WHERE session_id=? AND emergency_id IS NULL
+              AND datetime(ts) >= datetime(?)
+        """, (emergency_id, session_id, since_ts.strftime('%Y-%m-%d %H:%M:%S')))
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"  [event-log] link failed: {e}")
+
+
+def get_emergency_events(emergency_id):
+    """Events linked to an emergency, oldest first (for the detail timeline)."""
+    con = _conn()
+    rows = con.execute(
+        "SELECT * FROM session_events WHERE emergency_id=? ORDER BY ts, id", (emergency_id,)
+    ).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_recent_events(limit=200):
+    """Recent lifecycle events with the subject's name, newest first — for the
+    tracks/calibration page (includes dismissed pendings, emergency_id NULL)."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT e.*, u.nome, u.cognome, u.username
+        FROM session_events e
+        LEFT JOIN users u ON u.id = e.user_id
+        ORDER BY e.ts DESC, e.id DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
 
 
 # ── Config ────────────────────────────────────────────────────────────────────

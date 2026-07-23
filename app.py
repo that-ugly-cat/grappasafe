@@ -107,9 +107,14 @@ def _pending_sweep_worker(stop_flag):
                 lat  = last[1] if last else None
                 lon  = last[2] if last else None
                 t = ctx.pending_trigger
+                since = ctx.pending_since
                 ctx.pending_trigger = None
                 ctx.pending_since   = None
-                _handle_emergency(session_id, ctx, tracker, t, lat, lon, None)
+                db.log_event("PENDING_TIMEOUT", session_id=session_id,
+                             user_id=(tracker.user_id if tracker else None),
+                             trigger=t.value, lat=lat, lon=lon)
+                eid = _handle_emergency(session_id, ctx, tracker, t, lat, lon, None)
+                db.link_events_to_emergency(session_id, since, eid)
         except Exception as e:
             print(f"  [pending-sweep] error: {e}")
 
@@ -756,7 +761,11 @@ async def session_ok(request: Request):
     with _trackers_lock:
         ctx = _em_contexts.get(session["id"])
     if ctx:
+        had = ctx.pending_trigger
         ack_ok(ctx, now)   # also clears pending_trigger/pending_since
+        if had:
+            db.log_event("PENDING_ACK", session_id=session["id"],
+                         user_id=user["id"], trigger=had.value)
     return JSONResponse({"ok": True})
 
 
@@ -791,9 +800,13 @@ async def emergency_confirm(request: Request):
 
     if ctx.pending_trigger:
         t                   = ctx.pending_trigger
+        since               = ctx.pending_since
         ctx.pending_trigger = None
         ctx.pending_since   = None
-        _handle_emergency(session["id"], ctx, tracker, t, lat, lon, alt_m)
+        db.log_event("PENDING_CONFIRM", session_id=session["id"], user_id=user["id"],
+                     trigger=t.value, lat=lat, lon=lon, alt_m=alt_m)
+        eid = _handle_emergency(session["id"], ctx, tracker, t, lat, lon, alt_m)
+        db.link_events_to_emergency(session["id"], since, eid)
 
     return JSONResponse({"ok": True, "already": False})
 
@@ -953,6 +966,8 @@ async def gps_point(request: Request):
         elif ctx.pending_trigger is None:
             ctx.pending_trigger = trigger
             ctx.pending_since   = now
+            db.log_event("PENDING_SENT", session_id=session_id, user_id=user["id"],
+                         trigger=trigger.value, lat=lat, lon=lon, alt_m=alt_m)
 
     # 3. Auto-confirm an expired pending
     # If the user did not answer within pending_timeout_s, the server confirms
@@ -961,9 +976,13 @@ async def gps_point(request: Request):
         elapsed = (now - ctx.pending_since).total_seconds()
         if elapsed >= cfg.pending_timeout_s:
             t = ctx.pending_trigger
+            since = ctx.pending_since
             ctx.pending_trigger = None
             ctx.pending_since   = None
-            _handle_emergency(session_id, ctx, tracker, t, lat, lon, alt_m)
+            db.log_event("PENDING_TIMEOUT", session_id=session_id, user_id=user["id"],
+                         trigger=t.value, lat=lat, lon=lon, alt_m=alt_m)
+            eid = _handle_emergency(session_id, ctx, tracker, t, lat, lon, alt_m)
+            db.link_events_to_emergency(session_id, since, eid)
 
     # 4. Build the response
     pending_em_resp = None
@@ -985,20 +1004,24 @@ async def gps_point(request: Request):
 # ── Emergency helper ──────────────────────────────────────────────────────────
 
 def _handle_emergency(session_id, ctx, tracker, trigger, lat, lon, alt_m):
-    """Open an emergency: update the context, the DB, and send notifications."""
+    """Open an emergency: update the context, the DB, and send notifications.
+    Returns the new emergency id, or None if it was deduped against an open one."""
     ctx.emergency_open = True
     db.update_session_state(session_id, "EMERGENCY")
     uid = tracker.user_id if tracker else None
     # Dedup: don't open a second emergency for someone who already has one open
     # (e.g. the same paraglider firing via both the app and OGN).
     if uid and db.get_open_emergency_for_user(uid):
-        return
+        return None
     eid = db.create_emergency(
         trigger=trigger.value,
         lat=lat, lon=lon, alt_m=alt_m,
         session_id=session_id, user_id=uid,
     )
+    db.log_event("EMERGENCY_OPENED", session_id=session_id, user_id=uid,
+                 trigger=trigger.value, emergency_id=eid, lat=lat, lon=lon, alt_m=alt_m)
     notify_emergency(eid)
+    return eid
 
 
 # ── Manual emergency API ──────────────────────────────────────────────────────
@@ -1599,6 +1622,7 @@ async def admin_emergency_detail(request: Request, eid: int):
     devices = db.get_user_devices(em["subject_user_id"]) if em.get("subject_user_id") else []
     return templates.TemplateResponse(request, "emergency_detail.html",
                                       {"user": user, "em": em, "devices": devices,
+                                       "events": db.get_emergency_events(eid),
                                        "witnesses": db.get_witnesses(eid),
                                        "witness_radius_m": int(db.WITNESS_RADIUS_M)})
 
@@ -1634,6 +1658,7 @@ async def admin_tracks(request: Request):
         "sessions": db.get_all_sessions_summary(),
         "ogn": db.get_all_ogn_summary(),
         "cols": DATA_COLS,
+        "events": db.get_recent_events(),
     })
 
 
@@ -1693,6 +1718,7 @@ async def resolve_emergency(request: Request, eid: int, note: str = Form("")):
     already_resolved = bool(em and em.get("resolved_at"))
     db.resolve_emergency(eid, resolved_by=user["id"], note=note.strip())
     if not already_resolved:
+        db.log_event("EMERGENCY_RESOLVED", emergency_id=eid, note=note.strip() or None)
         notify_emergency_resolved(eid)
     # Resolving an emergency closes the subject's activity: the session stays
     # alive (with GPS) during the emergency for the rescue, and is ended here.
@@ -1776,6 +1802,7 @@ async def ack_emergency(request: Request, eid: int):
     fresh = bool(em and not em.get("acknowledged_at") and not em.get("resolved_at"))
     db.acknowledge_emergency(eid, acknowledged_by=user["id"])
     if fresh:
+        db.log_event("EMERGENCY_ACK", emergency_id=eid)
         notify_emergency_ack(eid)
     return RedirectResponse(f"/admin/emergency/{eid}", status_code=303)
 

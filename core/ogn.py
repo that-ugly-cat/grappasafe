@@ -135,6 +135,8 @@ def _fire_ogn_emergency(ogn_id, display_name, kind, trigger, lat, lon, alt_m,
         trigger=trigger.value, lat=lat, lon=lon, alt_m=alt_m,
         ogn_beacon_id=beacon_id, user_id=owner, note=f"OGN: {display_name}",
     )
+    _db.log_event("EMERGENCY_OPENED", user_id=owner, ogn_id=ogn_id,
+                  trigger=trigger.value, emergency_id=eid, lat=lat, lon=lon, alt_m=alt_m)
     notify_emergency(eid)
     print(f"  [OGN] {trigger.value}: {display_name} ({kind})")
     return True

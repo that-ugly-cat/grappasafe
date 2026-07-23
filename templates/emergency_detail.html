@@ -55,6 +55,10 @@
     .wit-name a:hover { text-decoration: underline; }
     .wit-dist { color: #f0c674; font-size: .82rem; }
     .wit-when { color: #666; font-size: .78rem; margin-left: auto; }
+    .ev-list { display: flex; flex-direction: column; gap: .35rem; }
+    .ev { display: flex; gap: .8rem; align-items: baseline; font-size: .88rem; padding: .3rem .55rem; background: #12122a; border: 1px solid #2e2e4e; border-radius: 6px; }
+    .ev-when { color: #888; font-size: .78rem; white-space: nowrap; min-width: 132px; }
+    .ev-label { color: #ddd; }
   </style>
 </head>
 <body>
@@ -84,6 +88,29 @@
     {% if devices %}<div class="row"><span class="k">Vela / device</span><span class="v">{{ devices | map(attribute='display_name') | join(' · ') }}</span></div>{% endif %}
     {% if em.ogn_id %}<div class="row"><span class="k">Device OGN</span><span class="v trig">{{ em.ogn_id }}</span></div>{% endif %}
   </div>
+
+  {% set EV = {
+    'PENDING_SENT': "Pre-emergenza inviata al telefono",
+    'PENDING_ACK': "Annullata dall'utente («sto bene»)",
+    'PENDING_CONFIRM': "Confermata dall'utente («chiama soccorsi»)",
+    'PENDING_TIMEOUT': "Auto-confermata (nessuna risposta)",
+    'EMERGENCY_OPENED': "Emergenza aperta",
+    'EMERGENCY_ACK': "Presa in carico",
+    'EMERGENCY_RESOLVED': "Risolta"
+  } %}
+  {% if events %}
+  <div class="card">
+    <h3>Cronologia</h3>
+    <div class="ev-list">
+      {% for e in events %}
+      <div class="ev">
+        <span class="ev-when">{{ (e.ts | localtime) if e.ts else '' }}</span>
+        <span class="ev-label">{{ EV.get(e.event, e.event) }}{% if e.trigger %} <span class="trig muted">· {{ TRIG.get(e.trigger, e.trigger) }}</span>{% endif %}{% if e.note %} <span class="muted">— {{ e.note }}</span>{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <div class="card">
     <h3>Condivisione</h3>
