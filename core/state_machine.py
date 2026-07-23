@@ -160,11 +160,14 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
                             alt_m, speed_kmh, cfg):
     """Flight logic shared by SessionTracker and OgnTracker."""
 
-    if state == FlightState.GROUND:
+    # GROUND or LANDED both re-detect takeoff: LANDED is NOT terminal. An OGN
+    # device lands and relaunches (it has no "session end"), and a low, slow pass
+    # can trip a false LANDED — either way it must recover to AIRBORNE.
+    if state in (FlightState.GROUND, FlightState.LANDED):
         # Well above the ground is unambiguous: go airborne immediately, without
         # the confirmation streak. A gappy OGN feed keeps resetting that streak
         # (a normal beacon gap looks like silence), which can otherwise leave a
-        # pilot at altitude stuck at GROUND.
+        # pilot at altitude stuck at GROUND/LANDED.
         if alt_m >= cfg.airborne_alt_m:
             set_state(FlightState.AIRBORNE)
             set_since("takeoff_since", None)
@@ -192,8 +195,6 @@ def _update_flight_generic(state, set_state, get_since, set_since, now,
         else:
             set_since("landing_since", None)
         return
-
-    # LANDED stays LANDED; the session is closed manually.
 
 
 def impact_threshold(attivita: str, cfg: "EmConfig") -> float:
