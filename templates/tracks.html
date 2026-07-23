@@ -39,6 +39,11 @@
     .tag-app { background: #1a5a8a; color: #cfe6ff; }
     .tag-ogn { background: #4a2a8a; color: #e0d0ff; }
     .empty { color: #666; padding: 1rem 0; }
+    details.acc { margin-bottom: 1.2rem; border: 1px solid #2e2e4e; border-radius: 8px; padding: .3rem .7rem; background: #1e1e38; }
+    details.acc > summary { cursor: pointer; color: #cbd; font-size: .9rem; padding: .4rem .2rem; user-select: none; list-style: none; }
+    details.acc > summary::-webkit-details-marker { display: none; }
+    details.acc > summary::before { content: "▸ "; color: #6ab0ff; }
+    details.acc[open] > summary::before { content: "▾ "; }
     @media (max-width: 720px) {
       .content { margin: 1rem auto; padding: 0 .8rem 2rem; }
       table, thead, tbody, tr, td { display: block; width: 100%; }
@@ -76,6 +81,8 @@
     <span class="count" id="count">0 selezionate</span>
   </div>
 
+  <details class="acc">
+  <summary>Righe da esportare — {{ sessions|length }} sessioni app · {{ ogn|length }} OGN</summary>
   <div class="table-wrap">
   <table>
     <thead><tr><th></th><th>Sorgente</th><th>Soggetto</th><th>Dettaglio</th><th>Inizio</th><th>Fine</th><th>Punti</th></tr></thead>
@@ -107,31 +114,15 @@
   </div>
   {% if not sessions and not ogn %}<div class="empty">Nessuna traccia registrata.</div>{% endif %}
 
-  {% set EV = {
-    'PENDING_SENT': "Pre-emergenza inviata",
-    'PENDING_ACK': "Annullata («sto bene»)",
-    'PENDING_CONFIRM': "Confermata dall'utente",
-    'PENDING_TIMEOUT': "Auto-confermata (timeout)",
-    'EMERGENCY_OPENED': "Emergenza aperta",
-    'EMERGENCY_ACK': "Presa in carico",
-    'EMERGENCY_RESOLVED': "Risolta"
-  } %}
+  </details>
+
   <h3 style="margin-top:2rem">Eventi pre-emergenza</h3>
-  <p class="subtitle" style="margin-bottom:.8rem">Ciclo pending e apertura emergenze: inviata → confermata / annullata / scaduta. I pending annullati (senza emergenza collegata) sono l'audit dei falsi positivi. Conservati come le tracce.</p>
+  <p class="subtitle" style="margin-bottom:.8rem">Ciclo pending e apertura emergenze: inviata → confermata / annullata / scaduta. I pending annullati (senza emergenza collegata) sono l'audit dei falsi positivi. Conservati come le tracce. <span class="muted">La tabella si aggiorna da sola.</span></p>
   <div class="table-wrap">
   <table>
     <thead><tr><th>Ora</th><th>Soggetto</th><th>Evento</th><th>Trigger</th><th>Emergenza</th></tr></thead>
-    <tbody>
-      {% for e in events %}
-      <tr>
-        <td data-label="Ora">{{ (e.ts | localtime) if e.ts else '—' }}</td>
-        <td data-label="Soggetto"><span class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.username or e.ogn_id or '—') }}</span></td>
-        <td data-label="Evento">{{ EV.get(e.event, e.event) }}</td>
-        <td data-label="Trigger"><span class="muted">{{ e.trigger or '—' }}</span></td>
-        <td data-label="Emergenza">{% if e.emergency_id %}<a href="/admin/emergency/{{ e.emergency_id }}" style="color:#6ab0ff">#{{ e.emergency_id }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
-      {% if not events %}<tr class="none"><td colspan="5">Nessun evento registrato.</td></tr>{% endif %}
+    <tbody id="ev-rows">
+      {% include "_event_rows.html" %}
     </tbody>
   </table>
   </div>
@@ -158,6 +149,17 @@ function exportXlsx() {
   window.location = `/admin/tracks/export.xlsx?app=${app.join(',')}&ogn=${encodeURIComponent(ogn.join(','))}&cols=${cols.join(',')}`;
 }
 updateCount();
+
+// Live refresh of the pre-emergency events (read-only), leaving the export
+// selection table untouched.
+async function refreshEvents() {
+  try {
+    const r = await fetch('/admin/events/rows');
+    if (!r.ok) return;
+    document.getElementById('ev-rows').innerHTML = await r.text();
+  } catch {}
+}
+setInterval(refreshEvents, 15000);
 </script>
 </body>
 </html>

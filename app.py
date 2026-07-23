@@ -1610,6 +1610,29 @@ async def admin_emergencies_page(request: Request):
     })
 
 
+@app.get("/admin/emergencies/rows", response_class=HTMLResponse)
+async def admin_emergencies_rows(request: Request):
+    """Just the emergency table rows, for the polling refresh on the list page."""
+    _, redir = require_viewer(request)
+    if redir:
+        return HTMLResponse("", status_code=403)
+    return templates.TemplateResponse(request, "_emergency_rows.html", {
+        "emergencies": db.get_all_emergencies(),
+        "wmap": db.get_witnesses_map(),
+    })
+
+
+@app.get("/admin/events/rows", response_class=HTMLResponse)
+async def admin_events_rows(request: Request):
+    """Just the pre-emergency event rows, for the polling refresh on the tracks page."""
+    _, redir = require_admin(request)
+    if redir:
+        return HTMLResponse("", status_code=403)
+    return templates.TemplateResponse(request, "_event_rows.html", {
+        "events": db.get_recent_events(),
+    })
+
+
 @app.get("/admin/emergency/{eid}", response_class=HTMLResponse)
 async def admin_emergency_detail(request: Request, eid: int):
     """Detail/recap page for a single emergency."""

@@ -1,0 +1,47 @@
+{# Emergency table rows. Rendered inline by emergencies.html and standalone by
+   /admin/emergencies/rows for the polling refresh (single source of truth). #}
+{% set TRIG = {'MANUAL': 'SOS manuale', 'AUTO_CHUTE': 'Paracadute', 'SIGNAL_LOST': 'Segnale perso', 'AUTO_IMPACT': 'Impatto', 'AUTO_IMMOBILE': 'Immobilità'} %}
+{% for e in emergencies %}
+<tr class="{{ 'resolved' if e.resolved_at else '' }}" data-status="{{ 'resolved' if e.resolved_at else 'open' }}">
+  <td data-label="Ora">
+    {{ (e.ts | localtime) if e.ts else '—' }}
+    <div class="meta"><a class="who-link" href="/admin/emergency/{{ e.id }}">apri scheda emergenza →</a></div>
+  </td>
+  <td data-label="Soggetto">
+    {% if e.subject_user_id %}
+      <a class="who-link" href="/admin/user/{{ e.subject_user_id }}">{{ e.nome }} {{ e.cognome }}</a>
+    {% else %}
+      <div class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.ogn_id or '—') }}</div>
+    {% endif %}
+  </td>
+  <td data-label="Attività">{{ e.attivita or '—' }}</td>
+  <td data-label="Trigger"><span class="trig">{{ TRIG.get(e.trigger, e.trigger) }}</span></td>
+  <td data-label="Stato">
+    {% if e.resolved_at %}
+      <span class="badge b-res">Risolta</span>
+      <div class="meta">{{ e.resolved_at | localtime }}{% if e.resolver_nome %} · {{ e.resolver_nome }} {{ e.resolver_cognome }}{% endif %}</div>
+    {% else %}
+      <span class="badge b-open">Aperta</span>
+      {% if e.acknowledged_at %}<div class="meta">✓ presa in carico</div>{% endif %}
+    {% endif %}
+  </td>
+  <td data-label="Posizione">{% if e.lat %}<a class="maps" href="https://maps.google.com/?q={{ e.lat }},{{ e.lon }}" target="_blank" rel="noopener">📍 {{ "%.4f"|format(e.lat) }}, {{ "%.4f"|format(e.lon) }}</a>{% else %}—{% endif %}</td>
+  <td data-label="Testimoni">
+    {% set ws = wmap.get(e.id) %}
+    {% if ws %}
+      {% for w in ws[:4] %}<div class="wit-line"><span class="wit-name">{{ w.label }}</span> <span class="wit-dist">{{ w.distance_m|round|int }} m</span></div>{% endfor %}
+      {% if ws|length > 4 %}<div class="meta">+{{ ws|length - 4 }} altri</div>{% endif %}
+    {% elif e.witnesses_at %}<span class="meta">nessuno</span>
+    {% else %}<span class="meta">—</span>{% endif %}
+  </td>
+  <td data-label="Note" class="note-cell">{{ e.note or '—' }}</td>
+  <td data-label="Azioni">
+    {% if not e.resolved_at %}
+    <div class="actions">
+      {% if not e.acknowledged_at %}<button class="btn-ack" onclick="ack({{ e.id }})">Prendi in carico</button>{% endif %}
+      <button class="btn-res" onclick='resolve({{ e.id }}, {{ ((e.nome ~ " " ~ e.cognome) if e.nome else (e.ogn_id or "—"))|trim|tojson }}, {{ (e.ts | localtime)|tojson }})'>Risolvi</button>
+    </div>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}

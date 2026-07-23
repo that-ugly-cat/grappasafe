@@ -1,0 +1,21 @@
+{# Pre-emergency event rows. Rendered inline by tracks.html and standalone by
+   /admin/events/rows for the polling refresh (single source of truth). #}
+{% set EV = {
+  'PENDING_SENT': "Pre-emergenza inviata",
+  'PENDING_ACK': "Annullata («sto bene»)",
+  'PENDING_CONFIRM': "Confermata dall'utente",
+  'PENDING_TIMEOUT': "Auto-confermata (timeout)",
+  'EMERGENCY_OPENED': "Emergenza aperta",
+  'EMERGENCY_ACK': "Presa in carico",
+  'EMERGENCY_RESOLVED': "Risolta"
+} %}
+{% for e in events %}
+<tr>
+  <td data-label="Ora">{{ (e.ts | localtime) if e.ts else '—' }}</td>
+  <td data-label="Soggetto"><span class="who">{{ (e.nome ~ ' ' ~ e.cognome) if e.nome else (e.username or e.ogn_id or '—') }}</span></td>
+  <td data-label="Evento">{{ EV.get(e.event, e.event) }}</td>
+  <td data-label="Trigger"><span class="muted">{{ e.trigger or '—' }}</span></td>
+  <td data-label="Emergenza">{% if e.emergency_id %}<a href="/admin/emergency/{{ e.emergency_id }}" style="color:#6ab0ff">#{{ e.emergency_id }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+</tr>
+{% endfor %}
+{% if not events %}<tr class="none"><td colspan="5">Nessun evento registrato.</td></tr>{% endif %}
