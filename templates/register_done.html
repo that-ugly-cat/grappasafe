@@ -2,6 +2,7 @@
 {% block nav %}{% endblock %}
 {% block title %}Registrazione completata — GrappaSafe{% endblock %}
 {% block content %}
+{% set applink = "grappasafe://login?username=" ~ (username | urlencode) %}
 <div style="max-width:560px;margin:0 auto;text-align:center;padding-top:2.4rem">
   <img src="/static/logo-consorzio.png" alt="Vivere il Grappa"
        style="height:52px;background:#fff;border-radius:8px;padding:4px 8px">
@@ -9,7 +10,7 @@
   <p style="color:#555;line-height:1.55;margin:.4rem 0 1.8rem">
     Il tuo account è stato creato. Torna all'app GrappaSafe e accedi con le tue credenziali.
   </p>
-  <a href="grappasafe://login"
+  <a href="{{ applink }}"
      style="display:inline-block;background:#e63946;color:#fff;padding:.85rem 1.8rem;
             border-radius:10px;text-decoration:none;font-weight:600;font-size:1.05rem">
     Torna all'app
@@ -17,6 +18,6 @@
 </div>
 <script>
   // Prova a riaprire l'app da sola; se il browser blocca il deep-link, resta il bottone.
-  setTimeout(function () { window.location.href = "grappasafe://login"; }, 700);
+  setTimeout(function () { window.location.href = "{{ applink }}"; }, 700);
 </script>
 {% endblock %}

@@ -441,8 +441,9 @@ async def register_post(
 
     request.session["user"] = {"id": uid}
     if from_ == "app":
-        # Arrivati dall'app: pagina di successo col deep-link di ritorno.
-        return templates.TemplateResponse(request, "register_done.html", {})
+        # Arrivati dall'app: pagina di successo col deep-link di ritorno, che
+        # porta lo username per precompilare il login nell'app.
+        return templates.TemplateResponse(request, "register_done.html", {"username": username})
     return RedirectResponse("/me", status_code=303)
 
 
