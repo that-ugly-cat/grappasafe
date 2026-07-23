@@ -378,7 +378,7 @@ async def register_get(request: Request):
 @app.post("/register")
 async def register_post(
     request: Request,
-    username: str = Form(""), password: str = Form(""),
+    username: str = Form(""), password: str = Form(""), password2: str = Form(""),
     nome: str = Form(""), cognome: str = Form(""), email: str = Form(""),
     telefono: str = Form(""), data_nascita: str = Form(""),
     emergenza_contatto: str = Form(""), emergenza_telefono: str = Form(""),
@@ -407,6 +407,8 @@ async def register_post(
         error = "Email non valida"
     elif len(password) < 6:
         error = "La password deve avere almeno 6 caratteri"
+    elif password != password2:
+        error = "Le due password non coincidono"
     elif db.get_user_by_username(username):
         error = "Username già esistente"
     elif db.get_user_by_email(email):
