@@ -183,6 +183,13 @@ def _is_immobile(recent, window_s, cfg: EmConfig, now: datetime) -> bool:
     Displacement-based, so a jittery GPS speed spike can't reset the timer. Uses
     only points with usable accuracy, and needs history covering (most of) the
     window — otherwise we can't yet claim immobility for that long.
+
+    Outlier-tolerant: the center is the component-wise median (robust to a
+    minority of bogus fixes) and a small fraction of points may fall outside
+    the radius. Rationale: cell/wifi fixes picked up with no accuracy attached
+    can teleport kilometres away for one tick; a lone bad pin must not mask a
+    real immobility (in field testing one such pin, 3.6 km off, did exactly
+    that — it suppressed a real post-impact emergency).
     """
     pts = [(t, la, lo) for (t, la, lo, acc) in recent
            if (now - t).total_seconds() <= window_s
@@ -192,16 +199,21 @@ def _is_immobile(recent, window_s, cfg: EmConfig, now: datetime) -> bool:
     oldest = min(t for t, _, _ in pts)
     if (now - oldest).total_seconds() < window_s * 0.8:
         return False
-    _, la0, lo0 = min(pts, key=lambda p: p[0])
-    return all(_haversine_m(la0, lo0, la, lo) <= cfg.immobile_radius_m
-               for _, la, lo in pts)
+    lats = sorted(la for _, la, _ in pts)
+    lons = sorted(lo for _, _, lo in pts)
+    med_la = lats[len(lats) // 2]
+    med_lo = lons[len(lons) // 2]
+    outliers = sum(1 for _, la, lo in pts
+                   if _haversine_m(med_la, med_lo, la, lo) > cfg.immobile_radius_m)
+    allowed = max(1, len(pts) // 8) if len(pts) >= 4 else 0
+    return outliers <= allowed
 
 
-def _latest_good(recent, cfg: EmConfig):
-    """Most recent (lat, lon) with usable accuracy, or None."""
+def _last_good(recent, cfg: EmConfig, n: int):
+    """Last n (lat, lon) with usable accuracy, newest last."""
     good = [(la, lo) for (t, la, lo, acc) in recent
             if acc is None or acc <= cfg.gps_accuracy_max_m]
-    return good[-1] if good else None
+    return good[-n:]
 
 
 def _eval_flight(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) -> Optional[EmergencyTrigger]:
@@ -224,8 +236,16 @@ def _impact_immobile(ctx: EmContext, cfg: EmConfig, rules: dict, now: datetime) 
     if not impact_relevant:
         return None
     if ctx.impact_lat is not None:
-        latest = _latest_good(ctx.recent, cfg)
-        if latest and _haversine_m(ctx.impact_lat, ctx.impact_lon, latest[0], latest[1]) > cfg.immobile_radius_m:
+        # Walk-away: forget the impact only if the LAST TWO usable positions
+        # are BOTH beyond the radius. A single fix can be a cell/wifi teleport
+        # (no accuracy attached, so it passes the filter): in field testing one
+        # such pin, 3.6 km off, wiped a real impact 24 s before the pending
+        # would have fired. Two consecutive far positions ≈ genuine movement.
+        last2 = _last_good(ctx.recent, cfg, 2)
+        if len(last2) == 2 and all(
+            _haversine_m(ctx.impact_lat, ctx.impact_lon, la, lo) > cfg.immobile_radius_m
+            for la, lo in last2
+        ):
             ctx.impact_at = ctx.impact_lat = ctx.impact_lon = None
             return None
     if ((now - ctx.impact_at).total_seconds() >= cfg.impact_recovery_s
