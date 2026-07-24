@@ -1726,7 +1726,12 @@ async def admin_tracks_export(request: Request, app: str = "", ogn: str = "", co
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=grappasafe-tracce.xlsx"},
+        headers={
+            "Content-Disposition": "attachment; filename=grappasafe-tracce.xlsx",
+            # Senza no-store il browser cachea il download: ri-scaricando lo
+            # stesso URL si riottiene il file vecchio anche se il DB è cresciuto.
+            "Cache-Control": "no-store",
+        },
     )
 
 
