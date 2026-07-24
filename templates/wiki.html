@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — GrappaSafe{% endblock %}
+{% block content %}
+<style>
+  .wiki-wrap { max-width: 760px; margin: 0 auto; }
+  .wiki-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.4rem; }
+  .wiki-nav a {
+    padding: .35rem .9rem; border-radius: 16px; font-size: .88rem; text-decoration: none;
+    background: #fff; color: #444; border: 1px solid #ddd;
+  }
+  .wiki-nav a:hover { border-color: #1a1a2e; color: #1a1a2e; }
+  .wiki-nav a.on { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+  .wiki-body { background: #fff; border-radius: 10px; border: 1px solid #e5e5e5;
+    padding: 2rem 2.2rem; line-height: 1.65; }
+  .wiki-body h1 { font-size: 1.55rem; color: #1a1a2e; margin-bottom: 1rem; letter-spacing: -.01em; }
+  .wiki-body h2 { font-size: 1.15rem; color: #1a1a2e; margin: 1.8rem 0 .6rem; }
+  .wiki-body h3 { font-size: 1rem; color: #1a1a2e; margin: 1.3rem 0 .4rem; }
+  .wiki-body p { margin: .55rem 0; color: #333; }
+  .wiki-body ul, .wiki-body ol { margin: .55rem 0; padding-left: 1.4rem; color: #333; }
+  .wiki-body li { margin: .3rem 0; }
+  .wiki-body a { color: #1a6a8a; }
+  .wiki-body blockquote { border-left: 4px solid #e0a800; background: #fdf6e3;
+    padding: .7rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #664d03; }
+  .wiki-body blockquote p { color: inherit; margin: .2rem 0; }
+  .wiki-body table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  .wiki-body th, .wiki-body td { border: 1px solid #ddd; padding: .5rem .7rem; text-align: left; }
+  .wiki-body th { background: #f4f4f7; }
+  .wiki-body code { background: #f0f0f4; border-radius: 4px; padding: .1rem .35rem; font-size: .9em; }
+  .wiki-foot { margin: 1.6rem 0 1rem; text-align: center; font-size: .85rem; color: #999; }
+  .wiki-foot a { color: #1a6a8a; text-decoration: none; }
+  @media (max-width: 600px) { .wiki-body { padding: 1.3rem 1.1rem; } }
+</style>
+
+<div class="wiki-wrap">
+  <div class="wiki-nav">
+    {% for slug, title in wiki_pages.items() %}
+      <a href="/wiki{{ '' if slug == 'index' else '/' + slug }}"
+         class="{{ 'on' if slug == current else '' }}">{{ title }}</a>
+    {% endfor %}
+  </div>
+  <div class="wiki-body">{{ content | safe }}</div>
+  <div class="wiki-foot">
+    {% if not user %}<a href="/">← Torna alla pagina principale</a>{% else %}<a href="/me">← Torna al profilo</a>{% endif %}
+  </div>
+</div>
+{% endblock %}

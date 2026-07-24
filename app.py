@@ -1,5 +1,7 @@
 import os
 import threading
+
+import markdown as md_lib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 
@@ -1865,6 +1867,54 @@ async def admin_delete_user(request: Request, uid: int):
         raise HTTPException(400, "Non puoi eliminare te stesso")
     db.delete_user(uid)
     return RedirectResponse("/admin", status_code=303)
+
+
+# ── Wiki utente: guida pubblica, markdown renderizzato ────────────────────────
+# I contenuti vivono in /wiki/*.md (solo italiano per ora; traduzioni dopo la
+# validazione). Pagine whitelistate: niente path traversal, 404 sul resto.
+
+WIKI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wiki")
+WIKI_PAGES = {
+    "index":     "GrappaSafe",
+    "app":       "L'app",
+    "ogn":       "OGN/FLARM",
+    "server":    "Server e monitoraggio",
+    "emergenze": "Emergenze",
+    "privacy":   "Privacy e dati",
+    "limiti":    "Limiti del sistema",
+}
+
+
+def _wiki_page(request: Request, page: str):
+    if page not in WIKI_PAGES:
+        raise HTTPException(404)
+    path = os.path.join(WIKI_DIR, f"{page}.md")
+    try:
+        with open(path, encoding="utf-8") as f:
+            md_text = f.read()
+    except FileNotFoundError:
+        raise HTTPException(404)
+    # extensions: "extra" = tabelle, ecc.; il contenuto è nostro, niente input utente.
+    html = md_lib.markdown(md_text, extensions=["extra"])
+    user = get_current_user(request)
+    return templates.TemplateResponse(request, "wiki.html", {
+        "content":    html,
+        "wiki_pages": WIKI_PAGES,
+        "current":    page,
+        "page_title": WIKI_PAGES[page],
+        "user":       user,
+        **_web_i18n(request, user),
+    })
+
+
+@app.get("/wiki", response_class=HTMLResponse)
+async def wiki_index(request: Request):
+    return _wiki_page(request, "index")
+
+
+@app.get("/wiki/{page}", response_class=HTMLResponse)
+async def wiki_show(request: Request, page: str):
+    return _wiki_page(request, page)
 
 
 if __name__ == "__main__":
