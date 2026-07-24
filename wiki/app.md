@@ -22,7 +22,7 @@ Se resti **senza copertura**, i punti non vanno persi: si accumulano sul telefon
 
 ### SOS manuale
 
-Il pulsante rosso **SOS** funziona anche *senza* una sessione attiva. Tienilo premuto per 3 secondi: parte la richiesta d'aiuto con la tua posizione. Finché un operatore non prende in carico, l'app mostra lo stato dell'invio — incluso l'avviso esplicito se l'invio non è riuscito, così sai che devi chiamare direttamente il 112.
+Il pulsante rosso **SOS** funziona anche *senza* una sessione attiva. Tienilo premuto per 3 secondi: parte la richiesta d'aiuto con la tua posizione. Finché un operatore non prende in carico, l'app mostra lo stato dell'invio — incluso l'avviso esplicito se l'invio non è riuscito, così sai che devi chiamare direttamente il 118.
 
 ### Condivisione live
 

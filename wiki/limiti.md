@@ -4,7 +4,7 @@ Questa è la pagina più importante della guida. GrappaSafe è una rete di sicur
 
 ## La regola prima di tutte
 
-**Se puoi chiamare il 112, chiama il 112.** GrappaSafe non sostituisce la chiamata d'emergenza: la integra, per i casi in cui chiamare non puoi.
+**Se puoi chiamare il 118, chiama il 118.** GrappaSafe non sostituisce la chiamata d'emergenza: la integra, per i casi in cui chiamare non puoi.
 
 ## Quando l'app può non proteggerti
 

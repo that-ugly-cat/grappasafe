@@ -9,7 +9,7 @@ Il sistema fonde due sorgenti indipendenti:
 
 Quando il sistema rileva un'emergenza, gli operatori del consorzio ricevono immediatamente posizione, identità e dati utili al soccorso, e seguono la situazione fino alla risoluzione.
 
-**Una cosa da sapere subito**: GrappaSafe è una rete di sicurezza *aggiuntiva*. Non sostituisce il numero unico di emergenza — se puoi chiamare il **112**, chiama il 112. GrappaSafe serve soprattutto quando *non puoi* chiamare: dopo un impatto, se hai perso i sensi, se il telefono è fuori portata di mano.
+**Una cosa da sapere subito**: GrappaSafe è una rete di sicurezza *aggiuntiva*. Non sostituisce la chiamata di soccorso — se puoi chiamare il **118**, chiama il 118. GrappaSafe serve soprattutto quando *non puoi* chiamare: dopo un impatto, se hai perso i sensi, se il telefono è fuori portata di mano.
 
 ## Le pagine di questa guida
 
