@@ -23,7 +23,7 @@ from core.notify import (
     send_telegram_test, send_email_test, send_password_reset,
 )
 from core.ogn import ogn_worker
-from core.state_machine import SessionTracker, update_sm, impact_threshold
+from core.state_machine import SessionTracker, update_sm, impact_threshold, FLIGHT_ACTIVITIES
 from core.terrain import compute_agl
 from core.emergency import (
     EmConfig, EmContext, EmergencyTrigger, evaluate_em, update_em_context, ack_ok, ogn_kind,
@@ -1582,11 +1582,14 @@ def _with_agl(track):
 
 @app.get("/api/admin/track/{session_id}")
 async def admin_track(request: Request, session_id: int):
-    """Track of an app session for the admin map, with AGL for the barogram."""
+    """Track of an app session for the admin map, with AGL for the barogram.
+    Trimmed to the latest contiguous run, come le tracce OGN: una sessione
+    lasciata aperta tra pause o buchi di segnale non deve trascinarsi dietro
+    la storia intera sulla mappa live."""
     _, redir = require_viewer(request)
     if redir:
         return JSONResponse({"error": "forbidden"}, status_code=403)
-    return JSONResponse(_with_agl(db.get_track(session_id, limit=300)))
+    return JSONResponse(_with_agl(db.get_track_live(session_id, limit=300)))
 
 
 @app.get("/api/admin/ogn-track/{ogn_id}")
@@ -1644,7 +1647,14 @@ async def admin_emergency_detail(request: Request, eid: int):
     em = db.get_emergency(eid)
     if not em:
         raise HTTPException(404, "Emergenza non trovata")
-    devices = db.get_user_devices(em["subject_user_id"]) if em.get("subject_user_id") else []
+    # La riga "Vela / device" ha senso solo per le attività di volo: durante
+    # un'escursione la vela è a casa, mostrarla ai soccorritori confonde
+    # (cercherebbero una vela che non c'è).
+    devices = (
+        db.get_user_devices(em["subject_user_id"])
+        if em.get("subject_user_id") and em.get("attivita") in FLIGHT_ACTIVITIES
+        else []
+    )
     return templates.TemplateResponse(request, "emergency_detail.html",
                                       {"user": user, "em": em, "devices": devices,
                                        "events": db.get_emergency_events(eid),

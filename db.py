@@ -701,18 +701,9 @@ def get_ogn_latest(window_min=10):
     return [dict(r) for r in rows]
 
 
-def get_ogn_track(ogn_id, limit=300, gap_min=30):
-    """Beacon track for one OGN device, trimmed to the current flight.
-    An OGN id accumulates many flights over days, so we split on gaps longer
-    than gap_min minutes and keep only the latest contiguous run."""
-    con = _conn()
-    rows = con.execute("""
-        SELECT ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg
-        FROM ogn_beacons WHERE ogn_id=?
-        ORDER BY ts DESC LIMIT ?
-    """, (ogn_id, limit)).fetchall()
-    con.close()
-    pts = [dict(r) for r in reversed(rows)]   # oldest first
+def _latest_contiguous_run(pts, gap_min):
+    """Trim a time-ordered track (oldest first) to its latest contiguous run:
+    split on gaps longer than gap_min minutes, keep only the last segment."""
     if len(pts) < 2:
         return pts
 
@@ -729,6 +720,29 @@ def get_ogn_track(ogn_id, limit=300, gap_min=30):
             start = i
             break
     return pts[start:]
+
+
+def get_track_live(session_id, limit=300, gap_min=30):
+    """App-session track for the LIVE dashboard, trimmed like an OGN track: a
+    session left open across pauses or signal holes accumulates history, and
+    the live map should show only the current contiguous run — the emergency
+    pages and the share link keep using the full get_track."""
+    return _latest_contiguous_run(get_track(session_id, limit=limit), gap_min)
+
+
+def get_ogn_track(ogn_id, limit=300, gap_min=30):
+    """Beacon track for one OGN device, trimmed to the current flight.
+    An OGN id accumulates many flights over days, so we split on gaps longer
+    than gap_min minutes and keep only the latest contiguous run."""
+    con = _conn()
+    rows = con.execute("""
+        SELECT ts, lat, lon, alt_m, speed_kmh, vspeed_ms, course_deg
+        FROM ogn_beacons WHERE ogn_id=?
+        ORDER BY ts DESC LIMIT ?
+    """, (ogn_id, limit)).fetchall()
+    con.close()
+    pts = [dict(r) for r in reversed(rows)]   # oldest first
+    return _latest_contiguous_run(pts, gap_min)
 
 
 def update_ogn_state(ogn_id, state):
