@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -1905,6 +1905,28 @@ def _wiki_page(request: Request, page: str):
         "user":       user,
         **_web_i18n(request, user),
     })
+
+
+
+# ── Download APK (beta testing) ───────────────────────────────────────────────
+# L'APK vive in downloads/ (volume Docker, fuori da git e dall'immagine): si
+# aggiorna con un semplice scp sul VPS, senza rebuild. Distribuzione pro
+# tempore per i tester; quando l'app andrà su store, la route resta come
+# fallback per il sideload.
+
+DOWNLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+
+
+@app.get("/download/grappasafe.apk")
+async def download_apk():
+    path = os.path.join(DOWNLOADS_DIR, "grappasafe.apk")
+    if not os.path.isfile(path):
+        raise HTTPException(404, "APK non ancora caricato")
+    return FileResponse(
+        path,
+        media_type="application/vnd.android.package-archive",
+        filename="grappasafe.apk",
+    )
 
 
 @app.get("/wiki", response_class=HTMLResponse)

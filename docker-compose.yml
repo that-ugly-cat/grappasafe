@@ -5,6 +5,7 @@ services:
     volumes:
       - ./data:/data
       - ./map_tiles:/app/map_tiles   # tile OpenTopoMap offline, servite su /map-tiles
+      - ./downloads:/app/downloads   # APK per i tester, servito su /download/grappasafe.apk
     environment:
       - GRAPPASAFE_DB=/data/grappasafe.db
     env_file:
