@@ -190,7 +190,7 @@ L.circle([45.85261987481419, 11.771344896002997], {
   radius: 19000, color: '#4a6aff', fillOpacity: 0.04, weight: 1.5, dashArray: '6,4',
 }).addTo(map);
 
-let entities = [], markers = {}, tracks = {}, emergMarkers = {}, activeId = null, hasFitted = false;
+let entities = [], markers = {}, emergMarkers = {}, activeId = null, hasFitted = false;
 
 // UTC timestamp -> Rome local time (CET/CEST handled by the tz database).
 const _FMT_HM  = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
@@ -367,20 +367,6 @@ async function resolveEmergency(id) {
   else alert('Errore: la risoluzione non è andata a buon fine.');
 }
 
-async function loadTrack(sessionId, color) {
-  if (!sessionId) return;
-  const key = `sess_${sessionId}`;
-  try {
-    const data = await fetch(`/api/admin/track/${sessionId}`).then(r => r.json());
-    const latlngs = data.map(p => [p.lat, p.lon]);
-    if (tracks[key]) {
-      tracks[key].setLatLngs(latlngs);
-    } else {
-      tracks[key] = L.polyline(latlngs, { color: color || '#3b82f6', weight: 2.5, opacity: .7 }).addTo(map);
-    }
-  } catch(e) {}
-}
-
 // Draw only the filtered entities on the map, and wire pin clicks to selectEntity.
 function renderMarkers() {
   const filtered = filteredEntities();
@@ -390,12 +376,6 @@ function renderMarkers() {
   for (const k of Object.keys(markers)) {
     if (!shown.has(k)) { markers[k].remove(); delete markers[k]; }
   }
-  // drop faint app tracks no longer shown
-  const shownSids = new Set(filtered.filter(e => e.source === 'APP' && e.session_id).map(e => 'sess_' + e.session_id));
-  for (const k of Object.keys(tracks)) {
-    if (!shownSids.has(k)) { tracks[k].remove(); delete tracks[k]; }
-  }
-
   const bounds = [];
   for (const e of filtered) {
     if (e.lat == null) continue;
@@ -410,7 +390,6 @@ function renderMarkers() {
       markers[e.id].on('click', () => selectEntity(id));   // pin click → track + barogram
     }
     bounds.push([e.lat, e.lon]);
-    if (e.source === 'APP' && e.session_id) loadTrack(e.session_id, activityColor(e.attivita));
   }
 
   if (bounds.length && !hasFitted) {
