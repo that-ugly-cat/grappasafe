@@ -55,6 +55,37 @@
   </details>
 </div>
 
+<div class="card">
+  <details {% if targets %}open{% endif %}>
+  <summary style="cursor:pointer;font-weight:600;font-size:1.05rem">
+    {{ t('fwd.summary') }}
+    <span style="font-weight:400;color:#888">{{ t('fwd.summaryOpt') }}</span>
+  </summary>
+  <p style="color:#888;font-size:.9rem;margin:.7rem 0 1.2rem">{{ t('fwd.help') }}</p>
+
+  <div id="fwd-list"></div>
+
+  <div id="fwd-form" style="display:none;margin-top:1rem;border-top:1px solid #eee;padding-top:1rem">
+    <input type="hidden" id="fwd-id">
+    <label>{{ t('fwd.nameLabel') }}
+      <input type="text" id="fwd-name">
+    </label>
+    <label>{{ t('fwd.urlLabel') }}
+      <input type="text" id="fwd-url" spellcheck="false">
+    </label>
+    <label>{{ t('fwd.tokenLabel') }}
+      <input type="text" id="fwd-token" spellcheck="false" autocomplete="off">
+    </label>
+    <p style="color:#888;font-size:.85rem;margin-top:.3rem">{{ t('fwd.tokenHelp') }}</p>
+    <div style="margin-top:1rem">
+      <button class="btn btn-primary" onclick="saveTarget()">{{ t('common.save') }}</button>
+      <button class="btn" onclick="closeFwdForm()" style="margin-left:.5rem">{{ t('common.cancel') }}</button>
+      <span id="fwd-error" class="error"></span>
+    </div>
+  </div>
+  </details>
+</div>
+
 <div id="ogn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeOgn()">
   <div style="background:#fff;border-radius:12px;max-width:460px;width:100%;padding:1.4rem 1.6rem">
     <h3 style="color:#1a1a2e;margin-bottom:.7rem">{{ t('me.ognModalTitle') }}</h3>
@@ -162,5 +193,154 @@ async function reload() {
 }
 
 render();
+
+// ── Inoltro dati a sistemi terzi ─────────────────────────────────────────────
+// Stessa faccia della sezione nell'app, sulle stesse API. Il token viaggia solo
+// verso il server: qui torna indietro come sole ultime quattro cifre.
+
+let targets = {{ targets | tojson }};
+
+const VEDETTA = { name: 'Vedetta', url: 'https://vedetta.borant.eu/api/ingest' };
+
+const TF = {
+  none:       {{ t('fwd.none') | tojson }},
+  add:        {{ t('fwd.add') | tojson }},
+  on:         {{ t('fwd.on') | tojson }},
+  off:        {{ t('fwd.off') | tojson }},
+  tokenSet:   {{ t('fwd.tokenSet') | tojson }},
+  noToken:    {{ t('fwd.noToken') | tojson }},
+  lastOk:     {{ t('fwd.lastOk') | tojson }},
+  lastError:  {{ t('fwd.lastError') | tojson }},
+  never:      {{ t('fwd.never') | tojson }},
+  test:       {{ t('fwd.test') | tojson }},
+  testing:    {{ t('fwd.testing') | tojson }},
+  testOk:     {{ t('fwd.testOk') | tojson }},
+  testFail:   {{ t('fwd.testFail') | tojson }},
+  edit:       {{ t('me.edit') | tojson }},
+  del:        {{ t('common.delete') | tojson }},
+  required:   {{ t('fwd.required') | tojson }},
+  saveError:  {{ t('fwd.saveError') | tojson }},
+  confirmDel: {{ t('fwd.confirmDelete') | tojson }},
+};
+
+function renderTargets() {
+  const el = document.getElementById('fwd-list');
+  const addBtn = `<button class="btn btn-success" onclick="openFwdForm()">${TF.add}</button>`;
+  if (!targets.length) {
+    el.innerHTML = `<p style="color:#888;margin-bottom:1rem">${TF.none}</p>${addBtn}`;
+    return;
+  }
+  el.innerHTML = targets.map(tg => {
+    const state = tg.last_error
+      ? `<span style="color:#b23">${TF.lastError.replace('{msg}', escapeHtml(tg.last_error))}</span>`
+      : tg.last_ok_at ? TF.lastOk : TF.never;
+    const token = tg.token_hint
+      ? TF.tokenSet.replace('{hint}', escapeHtml(tg.token_hint))
+      : `<span style="color:#b23">${TF.noToken}</span>`;
+    return `
+    <div style="display:flex;align-items:center;gap:.8rem;padding:.6rem 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap">
+      <div style="flex:1;min-width:12rem">
+        <div style="font-weight:600">${escapeHtml(tg.name)}
+          <span style="font-weight:400;color:${tg.enabled ? '#2a7' : '#999'}">· ${tg.enabled ? TF.on : TF.off}</span>
+        </div>
+        <div style="color:#888;font-size:.85rem;word-break:break-all">${escapeHtml(tg.url)}</div>
+        <div style="color:#888;font-size:.85rem">${token} · <span id="fwd-state-${tg.id}">${state}</span></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:.35rem;color:#666;font-size:.9rem">
+        <input type="checkbox" ${tg.enabled ? 'checked' : ''} onchange="toggleTarget(${tg.id}, this.checked)">
+        ${TF.on}
+      </label>
+      <button class="btn" onclick="testTarget(${tg.id})">${TF.test}</button>
+      <button class="btn" onclick="editTarget(${tg.id})">${TF.edit}</button>
+      <button class="btn btn-danger" onclick="deleteTarget(${tg.id})">${TF.del}</button>
+    </div>`;
+  }).join('') + `<div style="margin-top:1rem">${addBtn}</div>`;
+}
+
+function openFwdForm() {
+  // Un target nuovo nasce già puntato su Vedetta: resta solo il token da
+  // incollare, che è l'unica cosa che il pilota ha davvero in mano.
+  document.getElementById('fwd-id').value = '';
+  document.getElementById('fwd-name').value = VEDETTA.name;
+  document.getElementById('fwd-url').value = VEDETTA.url;
+  document.getElementById('fwd-token').value = '';
+  document.getElementById('fwd-error').textContent = '';
+  document.getElementById('fwd-form').style.display = 'block';
+}
+
+function closeFwdForm() {
+  document.getElementById('fwd-form').style.display = 'none';
+}
+
+function editTarget(id) {
+  const tg = targets.find(x => x.id === id);
+  if (!tg) return;
+  document.getElementById('fwd-id').value = tg.id;
+  document.getElementById('fwd-name').value = tg.name;
+  document.getElementById('fwd-url').value = tg.url;
+  document.getElementById('fwd-token').value = '';   // vuoto = lascia il token com'è
+  document.getElementById('fwd-error').textContent = '';
+  document.getElementById('fwd-form').style.display = 'block';
+}
+
+async function saveTarget() {
+  const id    = document.getElementById('fwd-id').value;
+  const name  = document.getElementById('fwd-name').value.trim();
+  const url   = document.getElementById('fwd-url').value.trim();
+  const token = document.getElementById('fwd-token').value.trim();
+  const errEl = document.getElementById('fwd-error');
+  if (!name || !url.startsWith('https://')) { errEl.textContent = TF.required; return; }
+
+  const current = targets.find(x => String(x.id) === String(id));
+  const payload = { name, url, enabled: current ? !!current.enabled : true };
+  if (token) payload.token = token;    // vuoto: il server tiene quello salvato
+
+  const res = await fetch(id ? `/api/me/forward-targets/${id}` : '/api/me/forward-targets', {
+    method: id ? 'PUT' : 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) { errEl.textContent = TF.saveError; return; }
+  await reloadTargets();
+  closeFwdForm();
+}
+
+async function toggleTarget(id, on) {
+  const tg = targets.find(x => x.id === id);
+  if (!tg) return;
+  await fetch(`/api/me/forward-targets/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name: tg.name, url: tg.url, enabled: on }),
+  });
+  await reloadTargets();
+}
+
+async function deleteTarget(id) {
+  if (!confirm(TF.confirmDel)) return;
+  const res = await fetch(`/api/me/forward-targets/${id}`, { method: 'DELETE' });
+  if (res.ok) await reloadTargets();
+}
+
+async function testTarget(id) {
+  const el = document.getElementById(`fwd-state-${id}`);
+  if (el) el.textContent = TF.testing;
+  const res = await fetch(`/api/me/forward-targets/${id}/test`, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (el) {
+    el.innerHTML = data.ok
+      ? `<span style="color:#2a7">${TF.testOk}</span>`
+      : `<span style="color:#b23">${TF.testFail.replace('{msg}', escapeHtml(data.message || ''))}</span>`;
+  }
+  const fresh = await fetch('/api/me/forward-targets');
+  if (fresh.ok) targets = await fresh.json();   // aggiorna l'esito senza ridisegnare
+}
+
+async function reloadTargets() {
+  const res = await fetch('/api/me/forward-targets');
+  if (res.ok) { targets = await res.json(); renderTargets(); }
+}
+
+renderTargets();
 </script>
 {% endblock %}

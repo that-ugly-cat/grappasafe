@@ -573,6 +573,7 @@ async def me_home(request: Request):
     return templates.TemplateResponse(request, "me.html", {
         "user": user,
         "devices": db.get_user_devices(user["id"]),
+        "targets": db.get_forward_targets(user["id"]),   # senza token, solo l'hint
         **_web_i18n(request, user),
     })
 
@@ -645,6 +646,12 @@ async def api_delete_device(request: Request, device_id: int):
 # observer, not an admin.
 
 def _forward_body(body):
+    """Validate a create/update payload.
+
+    The token is optional and only travels **towards** the server: the clients
+    never receive it back, so an empty or missing one means "leave the stored
+    token alone", never "erase it". A target without a token is useless anyway;
+    to get rid of one you delete the target."""
     name = (body.get("name") or "").strip()
     url  = (body.get("url") or "").strip()
     if not name:
@@ -655,13 +662,16 @@ def _forward_body(body):
         interval = int(body.get("min_interval_s") or 15)
     except (TypeError, ValueError):
         interval = 15
-    return {
+    data = {
         "name":           name[:80],
         "url":            url[:500],
-        "token":          (body.get("token") or "").strip() or None,
         "enabled":        1 if body.get("enabled", True) else 0,
         "min_interval_s": max(5, min(interval, 300)),
     }
+    token = (body.get("token") or "").strip()
+    if token:
+        data["token"] = token[:200]
+    return data
 
 
 @app.get("/api/me/forward-targets")

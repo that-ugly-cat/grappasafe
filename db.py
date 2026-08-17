@@ -463,11 +463,26 @@ def get_device(device_id):
 _FORWARD_COLS = ("id, owner_user_id, kind, name, url, token, enabled, min_interval_s, "
                  "enabled_at, last_ok_at, last_error, last_error_at, created_at")
 
+# Same columns without the token, plus its last four characters. A token lets
+# whoever holds it write positions in this pilot's name, so it goes out to the
+# client once — when they type it — and never comes back.
+_FORWARD_VIEW = ("id, owner_user_id, kind, name, url, enabled, min_interval_s, "
+                 "enabled_at, last_ok_at, last_error, last_error_at, created_at, "
+                 "CASE WHEN token IS NULL OR token='' THEN NULL "
+                 "     ELSE substr(token, -4) END AS token_hint")
+
+# Sentinel for update_forward_target: "the caller said nothing about the token,
+# leave the stored one alone". Distinct from None, which would mean "clear it".
+KEEP_TOKEN = object()
+
 
 def get_forward_targets(user_id):
+    """The user's targets **without their tokens** — this is what the app and
+    the web page get. For the record with the token see get_forward_target,
+    which must never be serialised to a client."""
     con = _conn()
     rows = con.execute(
-        f"SELECT {_FORWARD_COLS} FROM forward_targets WHERE owner_user_id=? ORDER BY name",
+        f"SELECT {_FORWARD_VIEW} FROM forward_targets WHERE owner_user_id=? ORDER BY name",
         (user_id,),
     ).fetchall()
     con.close()
@@ -486,6 +501,8 @@ def get_enabled_forward_targets(user_id):
 
 
 def get_forward_target(target_id):
+    """The full record, token included. Server-side only: it feeds the ownership
+    check and the delivery test. Do not return it from a route."""
     con = _conn()
     row = con.execute(
         f"SELECT {_FORWARD_COLS} FROM forward_targets WHERE id=?", (target_id,)
@@ -510,19 +527,26 @@ def add_forward_target(owner_user_id, name, url, token=None, kind="webhook",
     return tid
 
 
-def update_forward_target(target_id, owner_user_id, name, url, token=None,
+def update_forward_target(target_id, owner_user_id, name, url, token=KEEP_TOKEN,
                           enabled=1, min_interval_s=15):
     """Update a target only if it belongs to owner_user_id (ownership guard).
+
+    The token is left alone unless the caller passes one: the clients never see
+    it, so they cannot echo it back, and a request that says nothing about it
+    (flipping the switch, renaming) must not wipe it.
+
     enabled_at is stamped when the switch goes off→on, so the consent keeps its
     own date and is not rewritten by an unrelated edit."""
+    token_sql    = "" if token is KEEP_TOKEN else "token=?, "
+    token_params = () if token is KEEP_TOKEN else ((token or None),)
     con = _conn()
     con.execute(
-        "UPDATE forward_targets SET name=?, url=?, token=?, enabled=?, min_interval_s=?, "
+        f"UPDATE forward_targets SET name=?, url=?, {token_sql}enabled=?, min_interval_s=?, "
         "    enabled_at = CASE WHEN ?=0 THEN NULL "
         "                      WHEN enabled=0 THEN datetime('now') "
         "                      ELSE enabled_at END "
         "WHERE id=? AND owner_user_id=?",
-        (name, url, (token or None), 1 if enabled else 0, min_interval_s,
+        (name, url, *token_params, 1 if enabled else 0, min_interval_s,
          1 if enabled else 0, target_id, owner_user_id),
     )
     con.commit()
