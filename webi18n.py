@@ -92,7 +92,7 @@ _it = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Inoltro dati ad altri sistemi",
     "fwd.summaryOpt": "— opzionale, spento di default",
-    "fwd.help": "Puoi mandare la tua posizione anche a un altro sistema di tracciamento, per esempio Vedetta, dove un gruppo di amici segue i tuoi voli. A inoltrare è il server, non il telefono: non consuma batteria in più. Viene inoltrata solo la posizione — mai i dati sanitari, i contatti d'emergenza o gli allarmi.",
+    "fwd.help": "Puoi mandare la tua posizione anche a un altro sistema di tracciamento. A inoltrare è il server, non il telefono: non consuma batteria in più. Viene inoltrata solo la posizione — mai i dati sanitari, i contatti d'emergenza o gli allarmi.",
     "fwd.nameLabel": "Nome del sistema",
     "fwd.urlLabel": "Indirizzo di invio",
     "fwd.tokenLabel": "Token",
@@ -198,7 +198,7 @@ _en = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Forwarding to other systems",
     "fwd.summaryOpt": "— optional, off by default",
-    "fwd.help": "You can send your position to another tracking system too, for instance Vedetta, where a group of friends follows your flights. The server does the forwarding, not the phone, so it costs no extra battery. Only the position is forwarded — never your medical data, emergency contacts or alarms.",
+    "fwd.help": "You can send your position to another tracking system too. The server does the forwarding, not the phone, so it costs no extra battery. Only the position is forwarded — never your medical data, emergency contacts or alarms.",
     "fwd.nameLabel": "System name",
     "fwd.urlLabel": "Delivery address",
     "fwd.tokenLabel": "Token",
@@ -302,7 +302,7 @@ _de = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Weiterleitung an andere Systeme",
     "fwd.summaryOpt": "— optional, standardmäßig aus",
-    "fwd.help": "Du kannst deine Position auch an ein anderes Tracking-System senden, zum Beispiel Vedetta, wo eine Gruppe von Freunden deine Flüge verfolgt. Die Weiterleitung übernimmt der Server, nicht das Telefon: kein zusätzlicher Akkuverbrauch. Weitergegeben wird nur die Position — nie medizinische Daten, Notfallkontakte oder Alarme.",
+    "fwd.help": "Du kannst deine Position auch an ein anderes Tracking-System senden. Die Weiterleitung übernimmt der Server, nicht das Telefon: kein zusätzlicher Akkuverbrauch. Weitergegeben wird nur die Position — nie medizinische Daten, Notfallkontakte oder Alarme.",
     "fwd.nameLabel": "Name des Systems",
     "fwd.urlLabel": "Zieladresse",
     "fwd.tokenLabel": "Token",
@@ -406,7 +406,7 @@ _fr = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Transfert vers d'autres systèmes",
     "fwd.summaryOpt": "— facultatif, désactivé par défaut",
-    "fwd.help": "Vous pouvez aussi envoyer votre position à un autre système de suivi, par exemple Vedetta, où un groupe d'amis suit vos vols. C'est le serveur qui transfère, pas le téléphone : aucune batterie supplémentaire. Seule la position est transmise — jamais vos données médicales, vos contacts d'urgence ni les alarmes.",
+    "fwd.help": "Vous pouvez aussi envoyer votre position à un autre système de suivi. C'est le serveur qui transfère, pas le téléphone : aucune batterie supplémentaire. Seule la position est transmise — jamais vos données médicales, vos contacts d'urgence ni les alarmes.",
     "fwd.nameLabel": "Nom du système",
     "fwd.urlLabel": "Adresse d'envoi",
     "fwd.tokenLabel": "Jeton",
@@ -510,7 +510,7 @@ _es = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Reenvío a otros sistemas",
     "fwd.summaryOpt": "— opcional, desactivado por defecto",
-    "fwd.help": "Puedes enviar tu posición también a otro sistema de seguimiento, por ejemplo Vedetta, donde un grupo de amigos sigue tus vuelos. El reenvío lo hace el servidor, no el teléfono: no gasta batería adicional. Solo se reenvía la posición — nunca tus datos médicos, contactos de emergencia o alarmas.",
+    "fwd.help": "Puedes enviar tu posición también a otro sistema de seguimiento. El reenvío lo hace el servidor, no el teléfono: no gasta batería adicional. Solo se reenvía la posición — nunca tus datos médicos, contactos de emergencia o alarmas.",
     "fwd.nameLabel": "Nombre del sistema",
     "fwd.urlLabel": "Dirección de envío",
     "fwd.tokenLabel": "Token",
@@ -614,7 +614,7 @@ _nl = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Doorsturen naar andere systemen",
     "fwd.summaryOpt": "— optioneel, standaard uit",
-    "fwd.help": "Je kunt je positie ook naar een ander trackingsysteem sturen, bijvoorbeeld Vedetta, waar een groep vrienden je vluchten volgt. De server doet het doorsturen, niet de telefoon: het kost geen extra batterij. Alleen de positie gaat mee — nooit je medische gegevens, noodcontacten of alarmen.",
+    "fwd.help": "Je kunt je positie ook naar een ander trackingsysteem sturen. De server doet het doorsturen, niet de telefoon: het kost geen extra batterij. Alleen de positie gaat mee — nooit je medische gegevens, noodcontacten of alarmen.",
     "fwd.nameLabel": "Naam van het systeem",
     "fwd.urlLabel": "Verzendadres",
     "fwd.tokenLabel": "Token",
@@ -718,7 +718,7 @@ _pl = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Przekazywanie do innych systemów",
     "fwd.summaryOpt": "— opcjonalne, domyślnie wyłączone",
-    "fwd.help": "Możesz wysyłać swoją pozycję także do innego systemu śledzenia, na przykład Vedetta, gdzie grupa znajomych śledzi twoje loty. Przekazywaniem zajmuje się serwer, nie telefon: nie zużywa dodatkowej baterii. Przekazywana jest wyłącznie pozycja — nigdy dane medyczne, kontakty alarmowe ani alarmy.",
+    "fwd.help": "Możesz wysyłać swoją pozycję także do innego systemu śledzenia. Przekazywaniem zajmuje się serwer, nie telefon: nie zużywa dodatkowej baterii. Przekazywana jest wyłącznie pozycja — nigdy dane medyczne, kontakty alarmowe ani alarmy.",
     "fwd.nameLabel": "Nazwa systemu",
     "fwd.urlLabel": "Adres wysyłki",
     "fwd.tokenLabel": "Token",
@@ -822,7 +822,7 @@ _cs = {
     # me.html — inoltro a sistemi terzi
     "fwd.summary": "Přeposílání do jiných systémů",
     "fwd.summaryOpt": "— volitelné, ve výchozím stavu vypnuté",
-    "fwd.help": "Svou polohu můžete posílat i do jiného sledovacího systému, například do Vedetty, kde vaše lety sleduje skupina přátel. Přeposílání zajišťuje server, ne telefon: nestojí to žádnou baterii navíc. Přeposílá se pouze poloha — nikdy zdravotní údaje, nouzové kontakty ani alarmy.",
+    "fwd.help": "Svou polohu můžete posílat i do jiného sledovacího systému. Přeposílání zajišťuje server, ne telefon: nestojí to žádnou baterii navíc. Přeposílá se pouze poloha — nikdy zdravotní údaje, nouzové kontakty ani alarmy.",
     "fwd.nameLabel": "Název systému",
     "fwd.urlLabel": "Adresa odeslání",
     "fwd.tokenLabel": "Token",
