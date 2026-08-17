@@ -26,12 +26,13 @@ Un solo scopo: la **tua sicurezza** — rilevare le emergenze, allertare i socco
 
 ## Inoltro a sistemi terzi (facoltativo, spento di default)
 
-Dalle impostazioni dell'app puoi far mandare la tua posizione anche a un altro sistema di tracciamento, per esempio Vedetta, dove un gruppo di amici segue i tuoi voli. Funziona così:
+Dalle impostazioni dell'app, o dalla pagina **I miei device** del sito, puoi far mandare la tua posizione anche a un altro sistema di tracciamento. Funziona così:
 
 - **Lo attivi tu**, sistema per sistema, e lo spegni quando vuoi. L'interruttore *è* il consenso: senza, non parte nulla. La data di attivazione viene registrata.
 - **A inoltrare è il server**, non il telefono: nessun consumo di batteria aggiuntivo.
 - **Viene inoltrata solo la posizione** — coordinate, quota, velocità, attività e stato di volo. Nel pacchetto non c'è nemmeno il tuo nome: chi lo riceve sa già chi sei, perché sei tu ad avergli dato il token. Niente dati sanitari, niente contatti d'emergenza, e nessun allarme: le emergenze restano dentro GrappaSafe e sui canali del consorzio.
 - **L'inoltro è attivo solo durante una sessione**, come tutto il resto del tracciamento.
+- **Il token che incolli è una chiave.** Te lo dà il sistema che riceve, e serve a farti riconoscere: chi ce l'ha può scrivere posizioni a tuo nome su quel sistema. Per questo, una volta salvato, non te lo rimostriamo più — ne vedi solo le ultime quattro cifre. Se pensi sia finito in giro, fattene dare uno nuovo e reincollalo: il vecchio smette di funzionare.
 - **Da lì in poi valgono le regole dell'altro sistema.** Una volta uscito da GrappaSafe, quel dato è conservato secondo la privacy di chi lo riceve, non la nostra: se spegni l'inoltro, smettiamo di mandare, ma quello che è già arrivato lo cancella l'altro sistema.
 
 ## Per quanto li conserviamo
