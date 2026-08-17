@@ -181,6 +181,29 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_devices_ogn   ON devices (ogn_id);
         CREATE INDEX IF NOT EXISTS idx_devices_owner ON devices (owner_user_id);
 
+        -- Third-party systems this user wants their own positions forwarded to
+        -- (Vedetta and anything else accepting the same contract). Opt-in per
+        -- user and per target: the switch in the app is the consent, which is
+        -- why enabled_at is recorded. Only positions are ever forwarded — never
+        -- medical data, emergency contacts, or emergency events.
+        CREATE TABLE IF NOT EXISTS forward_targets (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            kind           TEXT NOT NULL DEFAULT 'webhook',
+            name           TEXT NOT NULL,
+            url            TEXT NOT NULL,
+            token          TEXT,
+            enabled        INTEGER NOT NULL DEFAULT 1,
+            min_interval_s INTEGER NOT NULL DEFAULT 15,
+            enabled_at     TEXT,
+            last_ok_at     TEXT,
+            last_error     TEXT,
+            last_error_at  TEXT,
+            created_at     TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_forward_owner ON forward_targets (owner_user_id);
+
         -- Lifecycle events for a session/pilot: the pre-emergency (pending)
         -- events and the emergency lifecycle. emergency_id is set once (and if)
         -- an emergency opens, so the episode shows in the emergency timeline; it
@@ -433,6 +456,105 @@ def get_device(device_id):
     row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
     con.close()
     return dict(row) if row else None
+
+
+# ── Forward targets (third-party systems, user opt-in) ────────────────────────
+
+_FORWARD_COLS = ("id, owner_user_id, kind, name, url, token, enabled, min_interval_s, "
+                 "enabled_at, last_ok_at, last_error, last_error_at, created_at")
+
+
+def get_forward_targets(user_id):
+    con = _conn()
+    rows = con.execute(
+        f"SELECT {_FORWARD_COLS} FROM forward_targets WHERE owner_user_id=? ORDER BY name",
+        (user_id,),
+    ).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_enabled_forward_targets(user_id):
+    con = _conn()
+    rows = con.execute(
+        f"SELECT {_FORWARD_COLS} FROM forward_targets "
+        "WHERE owner_user_id=? AND enabled=1",
+        (user_id,),
+    ).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def get_forward_target(target_id):
+    con = _conn()
+    row = con.execute(
+        f"SELECT {_FORWARD_COLS} FROM forward_targets WHERE id=?", (target_id,)
+    ).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
+def add_forward_target(owner_user_id, name, url, token=None, kind="webhook",
+                       enabled=1, min_interval_s=15):
+    con = _conn()
+    cur = con.execute(
+        "INSERT INTO forward_targets "
+        "(owner_user_id, kind, name, url, token, enabled, min_interval_s, enabled_at) "
+        "VALUES (?,?,?,?,?,?,?, CASE WHEN ?=1 THEN datetime('now') ELSE NULL END)",
+        (owner_user_id, kind, name, url, (token or None), 1 if enabled else 0,
+         min_interval_s, 1 if enabled else 0),
+    )
+    con.commit()
+    tid = cur.lastrowid
+    con.close()
+    return tid
+
+
+def update_forward_target(target_id, owner_user_id, name, url, token=None,
+                          enabled=1, min_interval_s=15):
+    """Update a target only if it belongs to owner_user_id (ownership guard).
+    enabled_at is stamped when the switch goes off→on, so the consent keeps its
+    own date and is not rewritten by an unrelated edit."""
+    con = _conn()
+    con.execute(
+        "UPDATE forward_targets SET name=?, url=?, token=?, enabled=?, min_interval_s=?, "
+        "    enabled_at = CASE WHEN ?=0 THEN NULL "
+        "                      WHEN enabled=0 THEN datetime('now') "
+        "                      ELSE enabled_at END "
+        "WHERE id=? AND owner_user_id=?",
+        (name, url, (token or None), 1 if enabled else 0, min_interval_s,
+         1 if enabled else 0, target_id, owner_user_id),
+    )
+    con.commit()
+    con.close()
+
+
+def delete_forward_target(target_id, owner_user_id):
+    con = _conn()
+    con.execute(
+        "DELETE FROM forward_targets WHERE id=? AND owner_user_id=?",
+        (target_id, owner_user_id),
+    )
+    con.commit()
+    con.close()
+
+
+def set_forward_result(target_id, ok, error=None):
+    """Outcome of the last delivery, shown back to the user in the app. Failures
+    are never raised anywhere: the forwarder is best-effort by design."""
+    con = _conn()
+    if ok:
+        con.execute(
+            "UPDATE forward_targets SET last_ok_at=datetime('now'), "
+            "last_error=NULL, last_error_at=NULL WHERE id=?", (target_id,),
+        )
+    else:
+        con.execute(
+            "UPDATE forward_targets SET last_error=?, last_error_at=datetime('now') "
+            "WHERE id=?", (str(error)[:200], target_id),
+        )
+    con.commit()
+    con.close()
 
 
 def get_all_sessions_summary(limit=1000):

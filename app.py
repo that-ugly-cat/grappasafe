@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import uvicorn
@@ -23,6 +24,7 @@ from core.notify import (
     send_telegram_test, send_email_test, send_password_reset,
 )
 from core.ogn import ogn_worker
+from core import forward
 from core.state_machine import SessionTracker, update_sm, impact_threshold, FLIGHT_ACTIVITIES
 from core.terrain import compute_agl
 from core.emergency import (
@@ -149,6 +151,7 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_retention_worker, args=(_stop_flag,), daemon=True).start()
     threading.Thread(target=_pending_sweep_worker, args=(_stop_flag,), daemon=True).start()
     threading.Thread(target=_witness_worker, args=(_stop_flag,), daemon=True).start()
+    threading.Thread(target=forward.forward_worker, args=(_stop_flag,), daemon=True).start()
     yield
     _stop_flag.set()
 
@@ -635,6 +638,93 @@ async def api_delete_device(request: Request, device_id: int):
     return JSONResponse({"ok": True})
 
 
+# ── Forward targets (third-party systems, user self-service) ──────────────────
+#
+# The user decides, target by target, whether their positions also go to another
+# system. The switch is the consent, so only they can touch these rows — not an
+# observer, not an admin.
+
+def _forward_body(body):
+    name = (body.get("name") or "").strip()
+    url  = (body.get("url") or "").strip()
+    if not name:
+        raise HTTPException(400, "Il nome del sistema è obbligatorio")
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "L'indirizzo deve iniziare con http:// o https://")
+    try:
+        interval = int(body.get("min_interval_s") or 15)
+    except (TypeError, ValueError):
+        interval = 15
+    return {
+        "name":           name[:80],
+        "url":            url[:500],
+        "token":          (body.get("token") or "").strip() or None,
+        "enabled":        1 if body.get("enabled", True) else 0,
+        "min_interval_s": max(5, min(interval, 300)),
+    }
+
+
+@app.get("/api/me/forward-targets")
+async def api_my_forward_targets(request: Request):
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    return JSONResponse(db.get_forward_targets(user["id"]))
+
+
+@app.post("/api/me/forward-targets")
+async def api_add_forward_target(request: Request):
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    data = _forward_body(await request.json())
+    tid  = db.add_forward_target(user["id"], **data)
+    forward.invalidate(user["id"])
+    return JSONResponse({"id": tid})
+
+
+@app.put("/api/me/forward-targets/{target_id}")
+async def api_update_forward_target(request: Request, target_id: int):
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    tgt = db.get_forward_target(target_id)
+    if not tgt or tgt["owner_user_id"] != user["id"]:
+        raise HTTPException(404, "Sistema non trovato")
+    data = _forward_body(await request.json())
+    db.update_forward_target(target_id, user["id"], **data)
+    forward.invalidate(user["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/me/forward-targets/{target_id}")
+async def api_delete_forward_target(request: Request, target_id: int):
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    tgt = db.get_forward_target(target_id)
+    if not tgt or tgt["owner_user_id"] != user["id"]:
+        raise HTTPException(404, "Sistema non trovato")
+    db.delete_forward_target(target_id, user["id"])
+    forward.invalidate(user["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/me/forward-targets/{target_id}/test")
+async def api_test_forward_target(request: Request, target_id: int):
+    """Handshake against the target, so the user finds out the token is wrong
+    now and not after a flight nobody saw."""
+    user, redir = require_auth(request)
+    if redir:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    tgt = db.get_forward_target(target_id)
+    if not tgt or tgt["owner_user_id"] != user["id"]:
+        raise HTTPException(404, "Sistema non trovato")
+    ok, message = await run_in_threadpool(forward.send_test, tgt)
+    db.set_forward_result(target_id, ok, None if ok else message)
+    return JSONResponse({"ok": ok, "message": message})
+
+
 # ── User profile ──────────────────────────────────────────────────────────────
 
 @app.get("/profile", response_class=HTMLResponse)
@@ -941,6 +1031,17 @@ async def gps_point(request: Request):
     elif sm_changed and ctx.emergency_open:
         # The SM keeps running internally but the DB stays at EMERGENCY
         update_em_context(ctx, old_state, tracker.state, now)
+
+    # Forward the position to the third-party systems this user opted into
+    # (Vedetta and the like). Fire-and-forget by design: a bounded queue and a
+    # worker thread, so nothing here can slow down or break what follows.
+    # Altitude goes out AMSL — the receiver has its own terrain data.
+    forward.enqueue(user["id"], forward.build_point(
+        ts=ts, lat=lat, lon=lon, alt_m=alt_m,
+        speed_kmh=speed_kmh, vspeed_ms=vspeed_ms,
+        activity=session["attivita"], state=tracker.state,
+        accel_g=body.get("accel_magnitude"), accuracy_m=body.get("accuracy_m"),
+    ))
 
     # Record where an impact happened, so we can forget it if the person then
     # walks away from the spot (they're evidently ok).

@@ -36,6 +36,7 @@ Durante una sessione puoi condividere un **link di tracking live** (dal chip in 
 - **Lingua** — italiano, inglese, tedesco, francese, spagnolo, olandese, polacco, ceco.
 - **Profilo** — i tuoi dati anagrafici e medici (gruppo sanguigno, note di salute, contatto d'emergenza). Sono i dati che arrivano ai soccorritori quando scatta un allarme: tienili aggiornati.
 - **I tuoi dispositivi** — le tue vele/mezzi con l'eventuale ID OGN/FLARM (vedi [la pagina OGN](/wiki/ogn)).
+- **Inoltro dati ad altri sistemi** — spento di default. Se lo accendi, la tua posizione viene mandata anche a un altro sistema di tracciamento (per esempio Vedetta, dove i tuoi amici ricevono le notifiche di decollo e atterraggio). A inoltrare è il server, non il telefono: non consuma batteria in più. Viene mandata **solo la posizione** — mai i dati sanitari, i contatti d'emergenza o gli allarmi. Vedi [privacy](/wiki/privacy).
 
 ## Permessi: perché servono e come impostarli
 

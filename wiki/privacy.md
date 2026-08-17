@@ -22,6 +22,17 @@ Un solo scopo: la **tua sicurezza** — rilevare le emergenze, allertare i socco
 - **Gli operatori del consorzio** (ruoli observer e admin) — la dashboard di monitoraggio e, quando serve per un'emergenza, i profili con contatti e dati medici.
 - **In caso di emergenza** — identità, posizione e dati medici partono verso i canali operativi del consorzio (gruppo Telegram, email degli operatori). La scheda dell'emergenza può essere condivisa con soccorritori esterni tramite un link che **scade dopo 24 ore**.
 - **Chi riceve il tuo link di tracking live** — la tua traccia della sessione in corso, finché la sessione è attiva. Il link lo condividi tu.
+- **I sistemi terzi che attivi tu** — se accendi l'inoltro dati (vedi sotto), la tua posizione arriva anche lì.
+
+## Inoltro a sistemi terzi (facoltativo, spento di default)
+
+Dalle impostazioni dell'app puoi far mandare la tua posizione anche a un altro sistema di tracciamento, per esempio Vedetta, dove un gruppo di amici segue i tuoi voli. Funziona così:
+
+- **Lo attivi tu**, sistema per sistema, e lo spegni quando vuoi. L'interruttore *è* il consenso: senza, non parte nulla. La data di attivazione viene registrata.
+- **A inoltrare è il server**, non il telefono: nessun consumo di batteria aggiuntivo.
+- **Viene inoltrata solo la posizione** — coordinate, quota, velocità, attività e stato di volo. Nel pacchetto non c'è nemmeno il tuo nome: chi lo riceve sa già chi sei, perché sei tu ad avergli dato il token. Niente dati sanitari, niente contatti d'emergenza, e nessun allarme: le emergenze restano dentro GrappaSafe e sui canali del consorzio.
+- **L'inoltro è attivo solo durante una sessione**, come tutto il resto del tracciamento.
+- **Da lì in poi valgono le regole dell'altro sistema.** Una volta uscito da GrappaSafe, quel dato è conservato secondo la privacy di chi lo riceve, non la nostra: se spegni l'inoltro, smettiamo di mandare, ma quello che è già arrivato lo cancella l'altro sistema.
 
 ## Per quanto li conserviamo
 
